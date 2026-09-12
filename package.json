@@ -1,0 +1,21 @@
+{
+  "name": "chrome-local-translator",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "node --check extension/background.js && node --check extension/content.js && node --check extension/ui/options.js && node --check extension/ui/popup.js",
+    "lint": "npm test",
+    "typecheck": "npm test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Free local browser translation extension",
+  "type": "module",
+  "dependencies": {
+    "@browsermt/bergamot-translator": "^0.4.9"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Local Page Translator",
+  "version": "0.1.0",
+  "description": "Translate selected text and draft replies locally in Chrome.",
+  "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
+  "host_permissions": ["https://bergamot.s3.amazonaws.com/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_title": "Local Translator",
+    "default_popup": "ui/popup.html"
+  },
+  "options_page": "ui/options.html",
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["content.js"],
+    "css": ["content.css"],
+    "run_at": "document_idle"
+  }],
+  "web_accessible_resources": [{
+    "resources": ["vendor/*", "ui/*"],
+    "matches": ["<all_urls>"]
+  }]
+}
