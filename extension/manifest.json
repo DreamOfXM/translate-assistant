@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Translate selected text and draft replies locally in Chrome.",
   "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
-  "host_permissions": ["https://bergamot.s3.amazonaws.com/*"],
+  "host_permissions": ["https://storage.googleapis.com/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": {
     "default_title": "Local Translator",
