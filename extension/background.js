@@ -23,24 +23,28 @@ class MozillaBacking extends TranslatorBacking {
       await cached.put(request, response.clone());
       return response.json();
     })();
-    return Object.entries(raw.models ?? {}).map(([key, entries]) => ({
-      from: key.split('-')[0],
-      to: key.split('-')[1],
-      files: entries[0]?.files ? {
-        model: { name: MODEL_BASE_URL + entries[0].files.model.path },
-        lex: { name: MODEL_BASE_URL + entries[0].files.lexicalShortlist.path },
-        vocab: { name: MODEL_BASE_URL + entries[0].files.vocab.path }
-      } : {}
-    }));
+    return Object.entries(raw.models ?? {}).map(([key, entries]) => {
+      const files = entries[0]?.files ?? {};
+      return {
+        from: key.split('-')[0],
+        to: key.split('-')[1],
+        files: {
+          model: { name: MODEL_BASE_URL + files.model.path },
+          lex: { name: MODEL_BASE_URL + files.lexicalShortlist.path },
+          ...(files.vocab ? { vocab: { name: MODEL_BASE_URL + files.vocab.path } } : {}),
+          ...(files.srcVocab ? { srcvocab: { name: MODEL_BASE_URL + files.srcVocab.path } } : {}),
+          ...(files.trgVocab ? { trgvocab: { name: MODEL_BASE_URL + files.trgVocab.path } } : {})
+        }
+      };
+    });
   }
 
   async loadTranslationModel({ from, to }) {
     const registry = await this.registry;
     const key = `${from}-${to}`;
-    const entries = registry.models?.[key];
-    if (!entries?.length) throw new Error(`暂不支持 ${from} → ${to}`);
-    const entry = entries.find(item => item.releaseStatus === 'Release') ?? entries[0];
-    const files = entry.files;
+    const entries = registry.filter(item => item.from === from && item.to === to);
+    if (!entries.length) throw new Error(`暂不支持 ${from} → ${to}`);
+    const files = entries[0].files;
     const cache = await caches.open(`local-translator-${key}`);
     const load = async (url) => {
       const request = new Request(url);
@@ -51,12 +55,12 @@ class MozillaBacking extends TranslatorBacking {
       const stream = response.body?.pipeThrough(new DecompressionStream('gzip'));
       return await new Response(stream ?? response.body).arrayBuffer();
     };
-    const [model, shortlist, vocab] = await Promise.all([
+    const [model, shortlist, ...vocabs] = await Promise.all([
       load(files.model.name),
       load(files.lex.name),
-      load(files.vocab.name)
+      ...(['vocab', 'srcvocab', 'trgvocab'].filter(name => files[name]).map(name => load(files[name].name)))
     ]);
-    return { model, shortlist, vocabs: [vocab], config: { 'gemm-precision': 'int8shiftAlphaAll' } };
+    return { model, shortlist, vocabs, config: { 'gemm-precision': 'int8shiftAlphaAll' } };
   }
 }
 
@@ -107,7 +111,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TRANSLATE') {
-    translate(message.text, message.source, message.target).then(text => sendResponse({ text })).catch(error => sendResponse({ error: error.message }));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('翻译超时，请检查网络、语言包下载或重新加载扩展')), 240000));
+    Promise.race([translate(message.text, message.source, message.target), timeout]).then(text => sendResponse({ text })).catch(error => sendResponse({ error: error.message }));
     return true;
   }
   if (message.type === 'PRELOAD_DIRECTION') {
