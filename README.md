@@ -98,31 +98,6 @@ npm run build
    于是引擎永远起不来、界面上只看到「启动超时」。manifest 里必须声明：
    `"content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" }`。
 
-## 它是怎么跑起来的
-
-```text
-网页
- └─ content.js（Shadow DOM 面板 · 选中识别 · 确认后填回）
-      │  chrome.runtime.sendMessage
-      ▼
-background.js（Service Worker：菜单 · 消息路由 · 状态）
-      │  runtime.connect 长连接
-      ▼
-offscreen.html / offscreen.js（离屏文档）
-      │  new Worker()
-      ▼
-vendor/worker/translator-worker.js → bergamot WASM 运行时
-      │
-      ▼
-Mozilla Firefox Translations 语言包（Cache Storage + 完整性校验）
-```
-
-**关键点：引擎为什么不在 Service Worker 里？**
-MV3 的 Service Worker 运行在 Worker 全局作用域，没有 `window`，也**不能 `new Worker()`**，
-而 bergamot 的 WASM 运行时必须有 DOM 侧的 Worker 能力。所以引擎放在
-`chrome.offscreen` 离屏文档里，Service Worker 只做消息代理和生命周期管理
-（按需创建、端口断开后自动重建）。
-
 ## 语言包
 
 语言包来自 Mozilla 的公开模型目录（116 个方向），许可证 **MPL-2.0**，

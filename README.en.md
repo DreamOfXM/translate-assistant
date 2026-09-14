@@ -81,27 +81,6 @@ Requires Chrome 109 or newer (uses the offscreen document API).
 1. **Content scripts can't use ES modules.** manifest's `content_scripts` with `"type": "module"` does not work on the Chrome versions we tested — the script is injected as a classic script and errors out immediately. So `npm run build` bundles `content.js` into an IIFE with esbuild (`bundle: true, format: 'iife'`). ES modules in extension pages (popup / options / offscreen) and the Service Worker are fully supported, so split modules as usual.
 2. **Extension pages' default CSP disallows compiling WebAssembly.** MV3's default `script-src 'self'` makes bergamot's WASM throw `WebAssembly.instantiateStreaming(): violates Content Security Policy`, so the engine never starts and the UI only ever shows "startup timeout". The manifest must declare: `"content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" }`.
 
-## How it runs
-
-```text
-Web page
- └─ content.js (Shadow DOM panel · selection detection · fill-back after confirmation)
-      │  chrome.runtime.sendMessage
-      ▼
-background.js (Service Worker: menus · message routing · state)
-      │  runtime.connect long-lived connection
-      ▼
-offscreen.html / offscreen.js (offscreen document)
-      │  new Worker()
-      ▼
-vendor/worker/translator-worker.js → bergamot WASM runtime
-      │
-      ▼
-Mozilla Firefox Translations language packs (Cache Storage + integrity check)
-```
-
-**Key point: why isn't the engine in the Service Worker?** MV3's Service Worker runs in a Worker global scope with no `window` and **cannot `new Worker()`**, while bergamot's WASM runtime requires a DOM-side Worker capability. So the engine lives in a `chrome.offscreen` offscreen document, and the Service Worker only does message proxying and lifecycle management (created on demand, rebuilt automatically after a port disconnects).
-
 ## Language packs
 
 Language packs come from Mozilla's public model catalog (116 directions), licensed **MPL-2.0**, and the runtime is [bergamot-translator](https://github.com/browsermt/bergamot-translator) (also MPL-2.0).
