@@ -76,11 +76,6 @@ Requires Chrome 109 or newer (uses the offscreen document API).
 
 **Load `dist/`, not `extension/`** — `content.js` is only injected after esbuild bundles it into a single file; the `content.js` in the source directory uses ES module `import`, and loading it directly throws `Cannot use import statement outside a module`.
 
-### Two pitfalls we hit (don't step back into them)
-
-1. **Content scripts can't use ES modules.** manifest's `content_scripts` with `"type": "module"` does not work on the Chrome versions we tested — the script is injected as a classic script and errors out immediately. So `npm run build` bundles `content.js` into an IIFE with esbuild (`bundle: true, format: 'iife'`). ES modules in extension pages (popup / options / offscreen) and the Service Worker are fully supported, so split modules as usual.
-2. **Extension pages' default CSP disallows compiling WebAssembly.** MV3's default `script-src 'self'` makes bergamot's WASM throw `WebAssembly.instantiateStreaming(): violates Content Security Policy`, so the engine never starts and the UI only ever shows "startup timeout". The manifest must declare: `"content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" }`.
-
 ## Language packs
 
 Language packs come from Mozilla's public model catalog (116 directions), licensed **MPL-2.0**, and the runtime is [bergamot-translator](https://github.com/browsermt/bergamot-translator) (also MPL-2.0).

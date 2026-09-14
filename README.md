@@ -86,18 +86,6 @@ npm run build
 源码目录里的 `content.js` 带 ES module 的 `import`，直接加载会报
 `Cannot use import statement outside a module`。
 
-### 两个踩过的坑（改动时别踩回去）
-
-1. **content script 不能用 ES module。** manifest 的 `content_scripts` 里写 `"type": "module"`
-   在实测的 Chrome 上不生效，脚本会被当成普通脚本注入并直接报错。所以 `npm run build`
-   会把 `content.js` 用 esbuild 打成 IIFE（`bundle: true, format: 'iife'`）。
-   扩展页面（popup / 选项页 / 离屏文档）和 Service Worker 里的 ES module 是正常支持的，照常拆分模块。
-2. **扩展页默认 CSP 不允许编译 WebAssembly。** MV3 默认 `script-src 'self'`，
-   bergamot 的 WASM 会报
-   `WebAssembly.instantiateStreaming(): violates Content Security Policy`，
-   于是引擎永远起不来、界面上只看到「启动超时」。manifest 里必须声明：
-   `"content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'" }`。
-
 ## 语言包
 
 语言包来自 Mozilla 的公开模型目录（116 个方向），许可证 **MPL-2.0**，
