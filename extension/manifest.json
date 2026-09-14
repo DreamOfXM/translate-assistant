@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "本地翻译助手",
+  "name": "翻译助手",
   "version": "0.2.0",
   "description": "在浏览器本地翻译选中文本和回复草稿，无需 API Key，语言包装好后可离线使用。",
   "permissions": ["storage", "contextMenus", "offscreen"],
@@ -13,7 +13,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "本地翻译助手",
+    "default_title": "翻译助手",
     "default_popup": "ui/popup.html"
   },
   "options_page": "ui/options.html",

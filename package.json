@@ -1,5 +1,5 @@
 {
-  "name": "chrome-local-translator",
+  "name": "translate-assistant",
   "version": "0.2.0",
   "private": true,
   "type": "module",

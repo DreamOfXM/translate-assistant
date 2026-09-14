@@ -26,7 +26,7 @@ import { homedir } from 'node:os';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(here, '..', '..');
-const extensionPath = join(projectRoot, 'dist', 'chrome-local-translator');
+const extensionPath = join(projectRoot, 'dist', 'translate-assistant');
 const profileDir = process.env.CHROME_PROFILE ?? join(here, '.chrome-profile');
 const testPage = join(here, 'test-page.html');
 

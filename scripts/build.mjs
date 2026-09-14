@@ -1,5 +1,5 @@
 /**
- * 打包：把 extension/ 复制成 dist/chrome-local-translator 并压缩为 zip，
+ * 打包：把 extension/ 复制成 dist/translate-assistant 并压缩为 zip，
  * 用于 Chrome 开发者模式加载或提交商店。
  */
 
@@ -12,7 +12,7 @@ import { build } from 'esbuild';
 const projectRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(projectRoot, 'extension');
 const dist = join(projectRoot, 'dist');
-const target = join(dist, 'chrome-local-translator');
+const target = join(dist, 'translate-assistant');
 
 // 清理旧产物。删除失败（文件被占用、或环境对批量删除有限制）时不中断，
 // 后面的复制会覆盖同名文件，最多留下少量无用旧文件。
@@ -54,7 +54,7 @@ if (existsSync(wasm)) {
   console.log(`   WASM 运行时：${(statSync(wasm).size / 1048576).toFixed(1)} MB`);
 }
 
-const zipPath = join(dist, 'chrome-local-translator.zip');
+const zipPath = join(dist, 'translate-assistant.zip');
 try {
   rmSync(zipPath, { force: true });
 } catch {
@@ -74,7 +74,7 @@ for (const name of readdirSync(dist)) {
 }
 
 // 压缩包里必须直接是扩展根目录（manifest.json 在顶层）。
-// 如果套一层 chrome-local-translator/ 目录，商店上传和「加载已解压」都会失败。
+// 如果套一层 translate-assistant/ 目录，商店上传和「加载已解压」都会失败。
 // 优先用 zip；macOS 上没有 zip 时退回 ditto
 const zipCommands = [
   ['zip', ['-r', '-q', zipPath, '.']],

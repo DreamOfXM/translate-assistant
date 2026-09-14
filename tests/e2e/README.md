@@ -28,7 +28,7 @@ CHROME_PATH=/path/to/chrome npm run test:e2e
 
 1. `npm run build`
 2. Chrome 打开 `chrome://extensions`，开启「开发者模式」
-3. 「加载已解压的扩展程序」→ 选择 `dist/chrome-local-translator`
+3. 「加载已解压的扩展程序」→ 选择 `dist/translate-assistant`
 4. 打开本目录下的 `test-page.html`（双击即可，file:// 也能用）
 5. 首次翻译会下载语言包，请先联网
 

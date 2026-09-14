@@ -1,4 +1,4 @@
-# 本地翻译助手 · Chrome 扩展
+# 翻译助手 · Chrome 扩展
 
 在浏览器里**本地**翻译网页上的外语文本，或把中文草稿翻译成目标语言后填回输入框。
 不需要 API Key、不需要本地后台服务、不上传任何文本。
@@ -73,10 +73,10 @@ npm run build
 
 1. Chrome 打开 `chrome://extensions`
 2. 打开右上角「开发者模式」
-3. 点「加载已解压的扩展程序」，选择 `dist/chrome-local-translator`
+3. 点「加载已解压的扩展程序」，选择 `dist/translate-assistant`
 4. **刷新已经打开的网页**（content script 只在新加载的页面注入）
 
-打包成 zip：`npm run build` 会同时生成 `dist/chrome-local-translator.zip`。
+打包成 zip：`npm run build` 会同时生成 `dist/translate-assistant.zip`。
 
 要求 Chrome 109 及以上（用到离屏文档 API）。
 
@@ -165,7 +165,7 @@ npm run test:e2e      # 真 Chrome 加载 dist/ 里的扩展，跑一遍四条�
 并完成翻译，用来确认「WASM 运行时 + Mozilla 线上模型」这对最大的技术风险没坏。
 默认验证 `en-zh`，也可以指定方向：`npm run verify:engine zh-en`。
 
-`npm run test:e2e` 起一个真 Chrome（默认有头）加载 `dist/chrome-local-translator`，
+`npm run test:e2e` 起一个真 Chrome（默认有头）加载 `dist/translate-assistant`，
 自动跑完 popup 翻译、选中翻译、悬停翻译、回复助手四条路径，并检查控制台没有
 CSP / ESM / WASM 报错。这层专门拦只在真浏览器里才暴露的问题，细节见 `tests/e2e/README.md`。
 
