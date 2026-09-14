@@ -115,7 +115,11 @@ export class CancelledError extends Error {}
      * @return {Promise<{worker:Worker, exports:Proxy<TranslationWorker>}>}
      */
     async loadWorker() {
-        const worker = new Worker(new URL('./worker/translator-worker.js', import.meta.url));
+        // 本副本相对 @browsermt/bergamot-translator@0.4.9 的唯一改动：
+        // 允许调用方显式指定 worker 地址。原实现固定用 import.meta.url 相对定位，
+        // 在离屏文档（offscreen.js）里会解析到错误的目录。
+        const workerUrl = this.options.workerUrl ?? new URL('./worker/translator-worker.js', import.meta.url);
+        const worker = new Worker(workerUrl);
 
         /**
          * Incremental counter to derive request/response ids from.

@@ -1,24 +1,27 @@
 {
   "manifest_version": 3,
-  "name": "Local Page Translator",
-  "version": "0.1.0",
-  "description": "Translate selected text and draft replies locally in Chrome.",
-  "permissions": ["storage", "contextMenus", "activeTab", "scripting"],
+  "name": "本地翻译助手",
+  "version": "0.2.0",
+  "description": "在浏览器本地翻译选中文本和回复草稿，无需 API Key，语言包装好后可离线使用。",
+  "permissions": ["storage", "contextMenus", "offscreen"],
   "host_permissions": ["https://storage.googleapis.com/*"],
-  "background": { "service_worker": "background.js", "type": "module" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "action": {
-    "default_title": "Local Translator",
+    "default_title": "本地翻译助手",
     "default_popup": "ui/popup.html"
   },
   "options_page": "ui/options.html",
-  "content_scripts": [{
-    "matches": ["<all_urls>"],
-    "js": ["content.js"],
-    "css": ["content.css"],
-    "run_at": "document_idle"
-  }],
-  "web_accessible_resources": [{
-    "resources": ["vendor/*", "ui/*"],
-    "matches": ["<all_urls>"]
-  }]
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
 }

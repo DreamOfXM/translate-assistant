@@ -1,21 +1,26 @@
 {
   "name": "chrome-local-translator",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "在浏览器本地翻译选中文本和回复草稿的 Chrome 扩展，无需 API Key，可离线使用",
+  "license": "MPL-2.0",
   "directories": {
     "doc": "docs"
   },
   "scripts": {
-    "test": "node --check extension/background.js && node --check extension/content.js && node --check extension/ui/options.js && node --check extension/ui/popup.js",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
     "lint": "npm test",
-    "typecheck": "npm test"
+    "typecheck": "npm test",
+    "build": "node scripts/build.mjs",
+    "test:e2e": "node tests/e2e/smoke.mjs",
+    "verify:engine": "node scripts/verify-engine.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "Free local browser translation extension",
-  "type": "module",
   "dependencies": {
     "@browsermt/bergamot-translator": "^0.4.9"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.0.1"
   }
 }

@@ -1,1 +1,46 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>语言包管理</title><link rel="stylesheet" href="options.css"></head><body><main><h1>语言包管理</h1><p>只下载你需要的语言方向。下载完成后可离线使用；每个方向首次下载约 20–45 MB。</p><div id="directions"></div><p id="status"></p></main><script src="options.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>语言包管理 · 本地翻译助手</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>语言包管理</h1>
+        <p class="lead">
+          翻译在你的浏览器里完成，不需要 API Key。首次使用某个方向会下载对应语言包，之后可离线使用。
+        </p>
+        <p class="source">
+          模型来源：<a href="https://github.com/mozilla/firefox-translations-models" target="_blank" rel="noreferrer">Mozilla Firefox Translations</a>　·　许可证：MPL-2.0　·
+          运行时：<a href="https://github.com/browsermt/bergamot-translator" target="_blank" rel="noreferrer">bergamot-translator</a>（MPL-2.0）
+        </p>
+      </header>
+
+      <div class="totals">
+        <span id="totals">正在读取语言包状态…</span>
+        <span class="spacer"></span>
+        <button id="refresh" class="link" type="button">刷新</button>
+      </div>
+
+      <div class="bar" id="bar" hidden><i></i></div>
+      <p class="status" id="status"></p>
+
+      <section>
+        <h2>常用组合</h2>
+        <p class="hint">
+          Mozilla 只发布「各语言 ↔ 英语」的模型，所以中文 ↔ 日语这类方向会经英语中转，需要两个语言包。
+        </p>
+        <div id="combos" class="list"></div>
+      </section>
+
+      <section>
+        <h2>全部语言包</h2>
+        <input id="search" type="search" placeholder="搜索语言，例如：日语 / ja / 韩" autocomplete="off" />
+        <div id="packs" class="list"></div>
+      </section>
+    </main>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -1,130 +1,258 @@
-import { LatencyOptimisedTranslator, TranslatorBacking } from './vendor/translator.js';
+/**
+ * Background Service Worker。
+ *
+ * 只做三件事：右键菜单、消息路由、把翻译请求转发给离屏文档里的引擎。
+ * 它自己不加载 WASM —— MV3 的 Service Worker 不能创建 Web Worker。
+ */
 
+import { MESSAGES, EVENTS, HOST, validateTranslateRequest, isValidDirection, packKey } from './lib/protocol.js';
+
+const OFFSCREEN_DOCUMENT = 'offscreen.html';
+const REQUEST_TIMEOUT = 300000;
+const STARTUP_TIMEOUT = 30000;
 const MENU_ID = 'translate-selection-local';
-const REGISTRY_URL = 'https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/db/models.json';
-const MODEL_BASE_URL = 'https://storage.googleapis.com/moz-fx-translations-data--303e-prod-translations-data/';
-let translator;
-let backing;
 
-const supported = new Set(['en-zh', 'zh-en', 'en-ja', 'ja-en', 'en-ko', 'ko-en', 'en-fr', 'fr-en', 'en-de', 'de-en', 'en-es', 'es-en', 'en-it', 'it-en', 'en-pt', 'pt-en', 'en-ru', 'ru-en']);
+let hostPort = null;
+let creating = null;
+const pending = new Map();
+const readyWaiters = new Set();
+let serial = 0;
 
-class MozillaBacking extends TranslatorBacking {
-  constructor(options) {
-    super({ ...options, registryUrl: REGISTRY_URL });
-  }
+/** 离屏文档连上就广播，不等某一次具体的 ensureHost —— 否则 ready 会在竞态里被丢掉 */
+function notifyReady() {
+  const waiters = [...readyWaiters];
+  readyWaiters.clear();
+  for (const resolve of waiters) resolve();
+}
 
-  async loadModelRegistery() {
-    const cached = await caches.open('local-translator-registry');
-    const request = new Request(REGISTRY_URL);
-    const stored = await cached.match(request);
-    const raw = stored ? await stored.json() : await (async () => {
-      const response = await fetch(request, { credentials: 'omit' });
-      if (!response.ok) throw new Error(`语言包目录下载失败（${response.status}）`);
-      await cached.put(request, response.clone());
-      return response.json();
-    })();
-    return Object.entries(raw.models ?? {}).map(([key, entries]) => {
-      const files = entries[0]?.files ?? {};
-      return {
-        from: key.split('-')[0],
-        to: key.split('-')[1],
-        files: {
-          model: { name: MODEL_BASE_URL + files.model.path },
-          lex: { name: MODEL_BASE_URL + files.lexicalShortlist.path },
-          ...(files.vocab ? { vocab: { name: MODEL_BASE_URL + files.vocab.path } } : {}),
-          ...(files.srcVocab ? { srcvocab: { name: MODEL_BASE_URL + files.srcVocab.path } } : {}),
-          ...(files.trgVocab ? { trgvocab: { name: MODEL_BASE_URL + files.trgVocab.path } } : {})
-        }
-      };
-    });
-  }
-
-  async loadTranslationModel({ from, to }) {
-    const registry = await this.registry;
-    const key = `${from}-${to}`;
-    const entries = registry.filter(item => item.from === from && item.to === to);
-    if (!entries.length) throw new Error(`暂不支持 ${from} → ${to}`);
-    const files = entries[0].files;
-    const cache = await caches.open(`local-translator-${key}`);
-    const load = async (url) => {
-      const request = new Request(url);
-      const saved = await cache.match(request);
-      const response = saved ?? await fetch(request, { credentials: 'omit' });
-      if (!response.ok) throw new Error(`语言包文件下载失败（${response.status}）`);
-      if (!saved) await cache.put(request, response.clone());
-      const stream = response.body?.pipeThrough(new DecompressionStream('gzip'));
-      return await new Response(stream ?? response.body).arrayBuffer();
+function waitForHost(timeout) {
+  if (hostPort) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      readyWaiters.delete(waiter);
+      reject(new Error('本地翻译引擎启动超时，请重新加载扩展后重试。'));
+    }, timeout);
+    const waiter = () => {
+      clearTimeout(timer);
+      resolve();
     };
-    const [model, shortlist, ...vocabs] = await Promise.all([
-      load(files.model.name),
-      load(files.lex.name),
-      ...(['vocab', 'srcvocab', 'trgvocab'].filter(name => files[name]).map(name => load(files[name].name)))
-    ]);
-    return { model, shortlist, vocabs, config: { 'gemm-precision': 'int8shiftAlphaAll' } };
+    readyWaiters.add(waiter);
+  });
+}
+
+/* ------------------------------- 离屏文档生命周期 ------------------------------ */
+
+async function createOffscreenDocument() {
+  if (typeof chrome.offscreen?.createDocument !== 'function') {
+    throw new Error('当前浏览器不支持离屏文档，请使用 Chrome 109 及以上版本。');
+  }
+  const existing = await chrome.runtime.getContexts?.({ contextTypes: ['OFFSCREEN_DOCUMENT'] }) ?? [];
+
+  // Service Worker 重启后，上一次的离屏文档可能还在，但它的端口已经断开且不会自己重连。
+  // 与其等它超时，不如直接关掉重建，保证拿到一个会主动连回来的实例。
+  if (existing.length) {
+    await chrome.offscreen.closeDocument().catch(() => {});
+  }
+
+  try {
+    await chrome.offscreen.createDocument({
+      url: chrome.runtime.getURL(OFFSCREEN_DOCUMENT),
+      reasons: [chrome.offscreen.Reason?.WORKERS ?? 'WORKERS'],
+      justification: '在离屏文档中加载本地 WASM 翻译引擎；Chrome 扩展的 Service Worker 无法创建 Web Worker。'
+    });
+  } catch (error) {
+    // 已经存在同一个离屏文档时忽略，其它错误照常抛出
+    if (!/single offscreen|already exists|Only one/i.test(String(error?.message))) throw error;
   }
 }
 
-async function getTranslator() {
-  if (!backing) backing = new MozillaBacking({ downloadTimeout: 180000 });
-  if (!translator) {
-    translator = new LatencyOptimisedTranslator({
-      workerUrl: chrome.runtime.getURL('vendor/worker/translator-worker.js'),
-      pivotLanguage: 'en',
-      downloadTimeout: 180000
-    }, backing);
-  }
-  return translator;
+async function ensureHost() {
+  if (hostPort) return hostPort;
+  if (creating) return creating;
+
+  creating = (async () => {
+    await createOffscreenDocument();
+    // 注意：createDocument 返回时离屏文档往往已经连上了，
+    // 所以必须用「等下一次连接」的方式，而不是在 await 之后才挂一次性 resolve。
+    await waitForHost(STARTUP_TIMEOUT);
+    return hostPort;
+  })().catch(async error => {
+    // 启动失败就把离屏文档关掉，否则下次 createDocument 会被「已存在」挡住
+    await chrome.offscreen.closeDocument?.().catch(() => {});
+    throw error;
+  }).finally(() => {
+    creating = null;
+  });
+
+  return creating;
 }
 
-function validDirection(direction) {
-  return /^[a-z]{2,3}-[a-z]{2,3}$/.test(direction);
+function request(op, payload, timeout = REQUEST_TIMEOUT) {
+  return new Promise((resolve, reject) => {
+    if (!hostPort) {
+      reject(new Error('翻译引擎未就绪，请重试。'));
+      return;
+    }
+    const id = ++serial;
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('翻译超时。请检查网络后重试，或删除语言包重新下载。'));
+    }, timeout);
+    pending.set(id, { resolve, reject, timer });
+    hostPort.postMessage({ id, op, payload });
+  });
 }
 
-async function translate(text, source, target) {
-  if (!text?.trim()) throw new Error('请输入要翻译的内容');
-  if (source === target) return text;
-  const direction = `${source}-${target}`;
-  if (!supported.has(direction)) throw new Error(`暂未提供 ${source} → ${target} 的离线语言包`);
-  const instance = await getTranslator();
-  const response = await instance.translate({ from: source, to: target, text, html: false });
-  return response.target.text;
-}
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== HOST.PORT_NAME) return;
+  hostPort = port;
 
-async function preload(direction) {
-  if (!validDirection(direction)) throw new Error('语言方向格式无效');
-  const [from, to] = direction.split('-');
-  if (!supported.has(direction)) throw new Error('该语言方向暂未发布可用语言包');
-  const instance = await getTranslator();
-  await backing.getTranslationModel({ from, to });
-  await chrome.storage.local.set({ [`downloaded:${direction}`]: true });
-  return { direction, status: 'downloaded' };
-}
+  port.onMessage.addListener(message => {
+    if (message?.type === 'progress') {
+      forwardProgress(message.tabId, message.progress);
+      return;
+    }
+    const entry = pending.get(message.id);
+    if (!entry) return;
+    pending.delete(message.id);
+    clearTimeout(entry.timer);
+    if (message.error) {
+      const error = new Error(message.error.message);
+      if (message.error.name) error.name = message.error.name;
+      entry.reject(error);
+    } else {
+      entry.resolve(message.result);
+    }
+  });
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll().then(() => chrome.contextMenus.create({ id: MENU_ID, title: '翻译选中文本', contexts: ['selection'] }));
+  port.onDisconnect.addListener(() => {
+    hostPort = null;
+    for (const [, entry] of pending) {
+      clearTimeout(entry.timer);
+      entry.reject(new Error('翻译引擎已停止，请重试。'));
+    }
+    pending.clear();
+  });
+
+  // 离屏文档可能在任何时刻连上来（包括 ensureHost 还没开始等的时候）
+  notifyReady();
 });
+
+function forwardProgress(tabId, progress) {
+  if (tabId) {
+    chrome.tabs.sendMessage(tabId, { type: EVENTS.TRANSLATION_PROGRESS, progress }).catch(() => {});
+  }
+  chrome.runtime.sendMessage({ type: EVENTS.TRANSLATION_PROGRESS, progress }).catch(() => {});
+}
+
+/* ---------------------------------- 语言包状态 -------------------------------- */
+
+/**
+ * 语言包的已安装状态只由 Service Worker 落盘。
+ * 离屏文档实测拿不到 chrome.storage（那里只有 chrome.runtime），不能在引擎侧写。
+ */
+async function storedPacks() {
+  const storage = await chrome.storage.local.get(null);
+  return Object.keys(storage).filter(key => key.startsWith('pack:')).map(key => key.slice(5));
+}
+
+async function rememberPacks(packs) {
+  if (!packs?.length) return;
+  const known = new Set(await storedPacks());
+  const writes = {};
+  for (const pack of packs) {
+    if (/^[a-z]{2,3}(_[a-z]+)?-[a-z]{2,3}(_[a-z]+)?$/.test(pack) && !known.has(pack)) {
+      writes[packKey(pack)] = { installedAt: Date.now() };
+    }
+  }
+  if (Object.keys(writes).length) await chrome.storage.local.set(writes);
+}
+
+/* ---------------------------------- 消息路由 ---------------------------------- */
+
+async function handle(message, sender) {
+  switch (message?.type) {
+    case MESSAGES.TRANSLATE: {
+      const check = validateTranslateRequest(message);
+      if (!check.ok) return { error: check.error };
+      await ensureHost();
+      const result = await request(HOST.OPS.TRANSLATE, {
+        text: check.value.text,
+        source: check.value.source,
+        target: check.value.target,
+        tabId: sender.tab?.id ?? null
+      });
+      await rememberPacks(result.installed);
+      return { text: result.text, segments: result.segments ?? 1 };
+    }
+
+    case MESSAGES.GET_CATALOG: {
+      await ensureHost();
+      const result = await request(HOST.OPS.CATALOG, {}, 60000);
+      return { catalog: result.catalog };
+    }
+
+    case MESSAGES.GET_DIRECTION_STATUS: {
+      await ensureHost();
+      const result = await request(HOST.OPS.STATUS, {}, 60000);
+      return { installed: [...new Set([...(await storedPacks()), ...(result.installed ?? [])])] };
+    }
+
+    case MESSAGES.PRELOAD_DIRECTION: {
+      if (!isValidDirection(message.direction)) return { error: '语言方向格式无效。' };
+      await ensureHost();
+      const result = await request(HOST.OPS.PRELOAD, { direction: message.direction });
+      await rememberPacks(result.installed);
+      return { direction: result.direction, packs: result.packs, direct: result.direct };
+    }
+
+    case MESSAGES.DELETE_DIRECTION: {
+      if (!isValidDirection(message.direction)) return { error: '语言方向格式无效。' };
+      await ensureHost();
+      const result = await request(HOST.OPS.DELETE, { direction: message.direction });
+      await chrome.storage.local.remove(packKey(message.direction));
+      return result;
+    }
+
+    case MESSAGES.GET_RUNTIME_STATUS:
+      return { ready: Boolean(hostPort) };
+
+    default:
+      return { error: `未知的消息类型：${message?.type}` };
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // 进度事件由本文件自己广播，不需要再处理
+  if (message?.type === EVENTS.TRANSLATION_PROGRESS) return false;
+
+  handle(message, sender).then(sendResponse).catch(error => sendResponse({ error: error?.message ?? String(error) }));
+  return true;
+});
+
+/* ---------------------------------- 右键菜单 ---------------------------------- */
+
+async function setupContextMenu() {
+  try {
+    await chrome.contextMenus.removeAll();
+    await chrome.contextMenus.create({
+      id: MENU_ID,
+      title: '翻译选中文本（本地）',
+      contexts: ['selection']
+    });
+  } catch {
+    /* 没有菜单权限时静默降级，页面内的按钮仍可用 */
+  }
+}
+
+chrome.runtime.onInstalled.addListener(setupContextMenu);
+chrome.runtime.onStartup.addListener(setupContextMenu);
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID || !tab?.id || !info.selectionText) return;
-  await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TRANSLATOR', text: info.selectionText });
-});
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'TRANSLATE') {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('翻译超时，请检查网络、语言包下载或重新加载扩展')), 240000));
-    Promise.race([translate(message.text, message.source, message.target), timeout]).then(text => sendResponse({ text })).catch(error => sendResponse({ error: error.message }));
-    return true;
-  }
-  if (message.type === 'PRELOAD_DIRECTION') {
-    preload(message.direction).then(sendResponse).catch(error => sendResponse({ error: error.message }));
-    return true;
-  }
-  if (message.type === 'DELETE_DIRECTION') {
-    caches.delete(`local-translator-${message.direction}`).then(() => chrome.storage.local.remove(`downloaded:${message.direction}`)).then(() => sendResponse({ status: 'deleted' }));
-    return true;
-  }
-  if (message.type === 'GET_DIRECTION_STATUS') {
-    chrome.storage.local.get(null).then(values => sendResponse({ downloaded: Object.keys(values).filter(key => key.startsWith('downloaded:')).map(key => key.slice(11)) }));
-    return true;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: EVENTS.SHOW_TRANSLATOR, text: info.selectionText });
+  } catch {
+    // 页面加载扩展之前就打开了，content script 还没注入；提示用户刷新即可
   }
 });

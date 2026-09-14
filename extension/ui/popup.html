@@ -1,1 +1,71 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>本地翻译</title><link rel="stylesheet" href="popup.css"></head><body><h1>本地翻译</h1><p>翻译在浏览器本地运行。</p><button id="options">语言包管理</button><script src="popup.js"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>本地翻译助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>本地翻译助手</h1>
+      <p class="hint">翻译在你的浏览器里完成，文本不会上传到任何服务器。</p>
+    </header>
+
+    <textarea id="source" placeholder="把要翻译的内容粘进来…"></textarea>
+
+    <div id="langbar"></div>
+
+    <div class="actions">
+      <button id="run" type="button">翻译</button>
+      <button id="copy" class="ghost" type="button" disabled>复制</button>
+    </div>
+
+    <div class="bar" id="bar" hidden><i></i></div>
+    <p class="status" id="status"></p>
+
+    <div class="output" id="output">
+      <div class="label" id="output-label">译文</div>
+      <p class="text placeholder" id="result">译文会出现在这里。</p>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-text">
+        <span>整页双语对照</span>
+        <small>打开网页自动逐段翻译，译文插在每段原文下面</small>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="auto" />
+        <i></i>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-text">
+        <span>右下角悬浮按钮</span>
+        <small>手动点「双语对照」翻整页，或收起全部译文</small>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="page" />
+        <i></i>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <div class="toggle-text">
+        <span>悬停出「译」按钮</span>
+        <small>鼠标停在段落上出现「译」，点一下翻那一段</small>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="hover" />
+        <i></i>
+      </label>
+    </div>
+
+    <footer>
+      <span id="packs">语言包：…</span>
+      <button id="manage" class="link" type="button">语言包管理</button>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

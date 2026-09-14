@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>本地翻译助手 · 端到端测试页</title>
+    <style>
+      body {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 32px 20px 80px;
+        font: 15px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #202124;
+      }
+      h1 { font-size: 22px; }
+      h2 { margin-top: 32px; font-size: 17px; padding-bottom: 6px; border-bottom: 1px solid #e8eaed; }
+      .case { margin: 16px 0; }
+      .tip { padding: 10px 12px; border-radius: 8px; background: #f1f3f4; font-size: 13px; color: #3c4043; }
+      textarea, input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+        font: 15px/1.6 inherit;
+        box-sizing: border-box;
+      }
+      textarea { min-height: 90px; resize: vertical; }
+      #editor {
+        min-height: 90px;
+        padding: 10px;
+        border: 1px solid #dadce0;
+        border-radius: 8px;
+      }
+      #editor:focus { outline: 2px solid #1a73e8; outline-offset: -1px; }
+      .quote { padding: 12px 14px; border-left: 3px solid #1a73e8; background: #f8f9fa; }
+      .counter { font-size: 12px; color: #5f6368; }
+      label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <h1>端到端测试页</h1>
+    <p class="tip">
+      用这个普通 HTML 页面验证扩展的完整闭环。首次翻译某个方向会下载语言包（约 25–50 MB），之后可断网重试验证离线能力。
+    </p>
+
+    <h2>1. 选中文本翻译</h2>
+    <div class="case">
+      <p class="quote" id="english-paragraph">
+        Local machine translation runs entirely on your device. Once the language pack is downloaded,
+        no network connection is required and no text ever leaves the browser.
+      </p>
+      <p class="counter">选中上面任意英文，应出现「翻译选中」按钮 → 点击后弹出结果卡片。</p>
+    </div>
+
+    <div class="case">
+      <p class="quote" id="japanese-paragraph">
+        この拡張機能はブラウザの中で翻訳を実行します。テキストが外部に送信されることはありません。
+      </p>
+      <p class="counter">选中日文，验证源语言自动识别为日语。</p>
+    </div>
+
+    <h2>2. 长文本分段</h2>
+    <div class="case">
+      <p class="quote" id="long-paragraph">
+        The purpose of this paragraph is to exercise the segmentation path of the extension. It needs to be
+        comfortably longer than the single request limit so that the content script decides to split the text
+        into several segments before sending anything to the translation engine. A naive implementation would
+        simply truncate the tail of the text and quietly lose the rest of the paragraph, which is exactly the
+        behaviour this test is meant to catch. When you select the whole paragraph and translate it, the status
+        line should report how many segments were used, and the final result should contain a translation of the
+        very last sentence as well, not just the first few ones. If the translation stops in the middle or drops
+        the ending, segmentation is broken and the request length limit is being applied incorrectly somewhere
+        along the path between the content script, the background service worker and the offscreen engine host.
+        Keep reading to the end of this sentence to make sure nothing has been silently discarded along the way.
+      </p>
+      <p class="counter">整段选中翻译，状态栏应提示「已分 N 段翻译完成」，且末尾句子也应被翻译。</p>
+    </div>
+
+    <h2>3. 回复翻译与确认填入</h2>
+    <div class="case">
+      <label for="comment">评论框（textarea）</label>
+      <textarea id="comment" placeholder="聚焦后应出现「翻译回复」按钮"></textarea>
+    </div>
+
+    <div class="case">
+      <label for="title">单行输入框（input[type=text]）</label>
+      <input id="title" type="text" placeholder="聚焦后应出现「翻译回复」按钮" />
+    </div>
+
+    <div class="case">
+      <label for="editor">富文本输入框（contenteditable）</label>
+      <div id="editor" contenteditable="true" placeholder="聚焦后应出现「翻译回复」按钮"></div>
+    </div>
+
+    <h2>4. 不应被识别的输入框</h2>
+    <div class="case">
+      <label for="secret">密码框</label>
+      <input id="secret" type="password" value="hunter2" />
+      <p class="counter">聚焦密码框时不应出现「翻译回复」按钮。</p>
+    </div>
+
+    <h2>5. 受限输入（模拟框架受控组件）</h2>
+    <div class="case">
+      <label for="locked">只读输入框</label>
+      <input id="locked" type="text" value="这段内容不会被替换" readonly />
+      <p class="counter">只读输入框仍可绑定，但填入失败时应给出「改用复制」的提示，且不应抛错。</p>
+    </div>
+
+    <script>
+      // 模拟 React 受控组件：直接赋值不会触发这里的监听，只有原生 input 事件才会
+      const comment = document.getElementById('comment');
+      const mirror = document.createElement('p');
+      mirror.className = 'counter';
+      mirror.textContent = '框架镜像值：（空）';
+      comment.after(mirror);
+      comment.addEventListener('input', () => {
+        mirror.textContent = `框架镜像值：${comment.value.slice(0, 60)}`;
+      });
+    </script>
+  </body>
+</html>

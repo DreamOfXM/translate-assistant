@@ -1,21 +1,230 @@
-const directions = [['zh','en','中文 → 英语'],['en','zh','英语 → 中文'],['zh','ja','中文 → 日语'],['ja','zh','日语 → 中文'],['zh','ko','中文 → 韩语'],['ko','zh','韩语 → 中文'],['zh','fr','中文 → 法语'],['fr','zh','法语 → 中文'],['zh','de','中文 → 德语'],['de','zh','德语 → 中文'],['zh','es','中文 → 西班牙语'],['es','zh','西班牙语 → 中文'],['zh','it','中文 → 意大利语'],['it','zh','意大利语 → 中文'],['zh','pt','中文 → 葡萄牙语'],['pt','zh','葡萄牙语 → 中文'],['zh','ru','中文 → 俄语'],['ru','zh','俄语 → 中文']];
-const root = document.querySelector('#directions');
-const status = document.querySelector('#status');
-let downloaded = [];
-function render() {
-  root.replaceChildren(...directions.map(([from, to, label]) => {
-    const direction = `${from}-${to}`;
-    const row = document.createElement('div'); row.className = 'direction';
-    const text = document.createElement('span'); text.innerHTML = `<strong>${label}</strong><small>${downloaded.includes(direction) ? '已下载，可离线使用' : '未下载，首次使用时下载'}</small>`;
-    const button = document.createElement('button'); button.textContent = downloaded.includes(direction) ? '删除' : '下载'; button.className = downloaded.includes(direction) ? 'installed' : '';
-    button.onclick = async () => {
-      button.disabled = true; status.textContent = downloaded.includes(direction) ? '正在删除语言包…' : '正在下载并校验语言包，首次可能需要一些时间…';
-      const response = await chrome.runtime.sendMessage({ type: downloaded.includes(direction) ? 'DELETE_DIRECTION' : 'PRELOAD_DIRECTION', direction });
-      if (response.error) status.textContent = `操作失败：${response.error}`;
-      else { downloaded = downloaded.includes(direction) ? downloaded.filter(item => item !== direction) : [...downloaded, direction]; status.textContent = downloaded.includes(direction) ? '语言包已下载，可离线使用。' : '语言包已删除。'; render(); }
-      button.disabled = false;
-    };
-    row.append(text, button); return row;
+import { languageName, COMMON_LANGUAGE_CODES, directionKey } from '../lib/languages.js';
+import { planPacks, missingPacks, formatBytes, EVENTS, MESSAGES } from '../lib/protocol.js';
+
+const $ = id => document.getElementById(id);
+
+const totalsLine = $('totals');
+const statusLine = $('status');
+const bar = $('bar');
+const barFill = bar.querySelector('i');
+const comboList = $('combos');
+const packList = $('packs');
+const searchInput = $('search');
+
+let catalog = [];
+let installed = [];
+let busy = false;
+let keyword = '';
+
+function setStatus(message, kind = '') {
+  statusLine.textContent = message ?? '';
+  statusLine.className = `status${kind ? ` ${kind}` : ''}`;
+}
+
+function progress(percent) {
+  bar.hidden = false;
+  barFill.style.width = `${Math.max(0, Math.min(100, percent ?? 0))}%`;
+}
+
+// Service Worker 会把引擎的下载进度广播给扩展页面
+chrome.runtime.onMessage.addListener(message => {
+  if (message?.type === EVENTS.TRANSLATION_PROGRESS && busy) {
+    progress(message.progress.percent);
+    if (message.progress.label) setStatus(message.progress.label);
+  }
+  return false;
+});
+
+function row({ name, meta, metaKind = '', actions = [] }) {
+  const node = document.createElement('div');
+  node.className = 'row';
+
+  const info = document.createElement('div');
+  info.className = 'info';
+  const title = document.createElement('span');
+  title.className = 'name';
+  title.textContent = name;
+  const subtitle = document.createElement('span');
+  subtitle.className = `meta${metaKind ? ` ${metaKind}` : ''}`;
+  subtitle.textContent = meta;
+  info.append(title, subtitle);
+
+  const buttons = document.createElement('div');
+  buttons.className = 'actions';
+  for (const { label, className = '', onClick, disabled = false } of actions) {
+    const button = document.createElement('button');
+    button.className = `action${className ? ` ${className}` : ''}`;
+    button.type = 'button';
+    button.textContent = label;
+    button.disabled = disabled || busy;
+    button.onclick = onClick;
+    buttons.append(button);
+  }
+
+  node.append(info, buttons);
+  return node;
+}
+
+function packLabel(pack) {
+  const [from, to] = pack.split('-');
+  return `${languageName(from)}→${languageName(to)}`;
+}
+
+function estimateBytes(packs) {
+  return packs.reduce((total, pack) => {
+    const entry = catalog.find(item => item.key === pack);
+    return total + (entry?.estimateBytes ?? 0);
+  }, 0);
+}
+
+async function runTask(direction, label) {
+  if (busy) return;
+  busy = true;
+  setStatus(`${label}…`);
+  progress(2);
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MESSAGES.PRELOAD_DIRECTION,
+      direction
+    });
+    if (response?.error) throw new Error(response.error);
+    await loadState();
+    setStatus(`${label}完成。`, 'ok');
+  } catch (error) {
+    setStatus(`${label}失败：${error.message}`, 'error');
+  } finally {
+    busy = false;
+    bar.hidden = true;
+    render();
+  }
+}
+
+async function removePack(direction) {
+  if (busy) return;
+  busy = true;
+  setStatus('正在删除语言包…');
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MESSAGES.DELETE_DIRECTION,
+      direction
+    });
+    if (response?.error) throw new Error(response.error);
+    await loadState();
+    setStatus('语言包已删除。', 'ok');
+  } catch (error) {
+    setStatus(`删除失败：${error.message}`, 'error');
+  } finally {
+    busy = false;
+    render();
+  }
+}
+
+function renderCombos() {
+  const available = catalog.map(item => item.key);
+  const others = COMMON_LANGUAGE_CODES.filter(code => !['zh', 'zh_hant', 'en'].includes(code));
+  const combos = [];
+
+  for (const code of others) {
+    for (const [from, to] of [[code, 'zh'], ['zh', code]]) {
+      const plan = planPacks(from, to, available);
+      if (plan) combos.push({ key: directionKey(from, to), from, to, plan });
+    }
+  }
+
+  if (!combos.length) {
+    comboList.innerHTML = '<p class="empty">暂时无法读取语言包目录。</p>';
+    return;
+  }
+
+  comboList.replaceChildren(...combos.map(({ key, from, to, plan }) => {
+    const missing = missingPacks(plan.packs, installed);
+    const ready = missing.length === 0;
+    const meta = ready
+      ? `已就绪，可离线使用（${plan.packs.map(packLabel).join(' + ')}）`
+      : `需 ${plan.packs.length} 个语言包：${plan.packs.map(packLabel).join(' + ')} · 约 ${formatBytes(estimateBytes(missing))}`;
+
+    return row({
+      name: `${languageName(from)} → ${languageName(to)}`,
+      meta,
+      metaKind: ready ? 'ready' : '',
+      actions: ready
+        ? []
+        : [{ label: `下载（${missing.length}/${plan.packs.length}）`, onClick: () => runTask(key, `下载 ${languageName(from)} → ${languageName(to)}`) }]
+    });
   }));
 }
-chrome.runtime.sendMessage({ type: 'GET_DIRECTION_STATUS' }).then(response => { downloaded = response.downloaded ?? []; render(); });
+
+function renderPacks() {
+  const available = catalog.map(item => item.key);
+  let items = catalog;
+  if (keyword) {
+    const lower = keyword.toLowerCase();
+    items = catalog.filter(item =>
+      item.key.includes(lower) ||
+      languageName(item.from).includes(lower) ||
+      languageName(item.to).includes(lower));
+  }
+  void available;
+
+  if (!items.length) {
+    packList.innerHTML = '<p class="empty">没有匹配的语言包。</p>';
+    return;
+  }
+
+  packList.replaceChildren(...items.map(item => {
+    const ready = installed.includes(item.key);
+    return row({
+      name: item.label,
+      meta: ready ? '已下载，可离线使用' : `预计下载约 ${formatBytes(item.estimateBytes)}`,
+      metaKind: ready ? 'ready' : '',
+      actions: ready
+        ? [{ label: '删除', className: 'remove', onClick: () => removePack(item.key) }]
+        : [{ label: '下载', onClick: () => runTask(item.key, `下载 ${item.label}`) }]
+    });
+  }));
+}
+
+function render() {
+  renderCombos();
+  renderPacks();
+  totalsLine.textContent = installed.length
+    ? `已安装 ${installed.length} 个语言包`
+    : '尚未安装语言包';
+}
+
+async function loadState() {
+  const [catalogResponse, statusResponse] = await Promise.all([
+    chrome.runtime.sendMessage({ type: MESSAGES.GET_CATALOG }),
+    chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS })
+  ]);
+
+  if (catalogResponse?.error) throw new Error(catalogResponse.error);
+  if (statusResponse?.error) throw new Error(statusResponse.error);
+
+  catalog = catalogResponse?.catalog ?? [];
+  installed = statusResponse?.installed ?? [];
+}
+
+async function refresh() {
+  setStatus('');
+  try {
+    await loadState();
+    render();
+    if (navigator.storage?.estimate) {
+      const { usage } = await navigator.storage.estimate();
+      if (usage) {
+        totalsLine.textContent += ` · 本地占用约 ${formatBytes(usage)}`;
+      }
+    }
+  } catch (error) {
+    setStatus(`读取语言包状态失败：${error.message}`, 'error');
+  }
+}
+
+searchInput.addEventListener('input', () => {
+  keyword = searchInput.value.trim();
+  renderPacks();
+});
+
+$('refresh').onclick = refresh;
+refresh();
