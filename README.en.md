@@ -54,7 +54,7 @@ Behavior details:
 - Chinese pages are not auto-translated; at most 200 paragraphs per run, to keep a very long page from freezing the engine
 - **Translation nodes show only the translation**: the original paragraph stays above on the page, so the node does not repeat the source (avoids a noisy UI); on failure the node shows the error in red in place, still making it clear which paragraph failed
 - **Mixed-language paragraphs are handled by their dominant language**: an English-dominant paragraph with a few Chinese characters (common in nav bars, brand names) is still translated, and won't report "source and target languages are the same"; a paragraph that is mostly Chinese characters is treated as genuinely Chinese, silently skipped, and shows no error card
-- **Auto mode never silently downloads language packs**: if the required pack is not installed, auto mode won't start, avoiding tens of MB of traffic the moment you open a page
+- **Auto mode does not download language packs automatically**: if the required pack is not installed, auto mode won't start, avoiding tens of MB of traffic the moment you open a page
 - Dynamic pages (infinite scroll, SPA) get newly inserted paragraphs translated too
 - When done the button becomes "Translated N paragraphs · collapse"; clicking collapses; clicking again restores without re-requesting translation
 - A paragraph that fails to translate only affects that one paragraph (error shown in place) and does not affect the ones after it
