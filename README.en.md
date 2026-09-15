@@ -6,7 +6,7 @@ Translate foreign text on web pages **locally** in your browser, or translate a 
 
 - **Selection translation**: select foreign text → click "Translate selection" → a result card appears next to the selection
 - **Hover translation** (read): toggle it on in the popup → hover over a paragraph and a "译" (Translate) button appears at its corner → the translation is inserted right below the paragraph and can be collapsed
-- **Full-page bilingual view** (read): open a foreign page and it translates paragraph by paragraph automatically, inserting each translation under its original (like immersive-translate), with no button to click
+- **Full-page bilingual view** (read): open a foreign page and it translates paragraph by paragraph automatically, inserting each translation under its original (like immersive-translate), with no button to click; **only the main article content is translated** — no translations injected into nav, sidebars, ads, footers, or comments
 - **Reply assistant** (write): click "Translate reply" in a comment box → write a draft in Chinese → produce the translation → it is only filled in **after you confirm**
 - **No language picking needed**: in the translation card the source sits on top and the translation appears below. The source language is auto-detected; the target defaults to Chinese
 - **Works offline**: once the language packs are downloaded, translation works without a network connection
@@ -33,7 +33,7 @@ The language bar is normally just a line of description, not a required field. C
 
 ### Read: Hover translation
 
-After enabling the "Hover translation" toggle in the popup, hovering over a paragraph shows a round "译" (Translate) button at its top-right corner; clicking inserts a bilingual translation below that paragraph (mounted in a Shadow DOM, unaffected by page styles), where you can "show source / show translation / copy / collapse" at any time. Clicking "译" again collapses it.
+After enabling the "Hover translation" toggle in the popup, hovering over a paragraph shows a round "译" (Translate) button at its top-right corner; clicking inserts the translation below that paragraph (mounted in a Shadow DOM, unaffected by page styles), with copy and collapse actions; the node holds only the translation — the original is already right above it. Clicking "译" again collapses it.
 
 Chinese paragraphs show no button (no translation value for Chinese readers), and neither do input fields (that is the "write" mode's territory).
 
@@ -50,12 +50,13 @@ Chinese paragraphs show no button (no translation value for Chinese readers), an
 Behavior details:
 
 - The button shows live progress "Translating N/M · click to stop", and can be stopped at any time
+- **Only the main article content is translated**: it first looks for a content root among semantic containers (`article` / `main` / `[role=main]` / common CMS class names), and falls back to Readability-lite scoring when none is found; nav, sidebars, footers, ad slots, comment sections, and link-dense blocks are always skipped. When no content root can be identified (e.g. plain pages with bare paragraphs directly under `<body>`), it falls back to "translate every qualifying block" — better to translate too much than to miss the real article
 - Only translates leaf blocks: nested structures like `blockquote > p` are not translated twice; hidden templates and ad slots are skipped
 - Chinese pages are not auto-translated; at most 200 paragraphs per run, to keep a very long page from freezing the engine
 - **Translation nodes show only the translation**: the original paragraph stays above on the page, so the node does not repeat the source (avoids a noisy UI); on failure the node shows the error in red in place, still making it clear which paragraph failed
 - **Mixed-language paragraphs are handled by their dominant language**: an English-dominant paragraph with a few Chinese characters (common in nav bars, brand names) is still translated, and won't report "source and target languages are the same"; a paragraph that is mostly Chinese characters is treated as genuinely Chinese, silently skipped, and shows no error card
 - **Auto mode does not download language packs automatically**: if the required pack is not installed, auto mode won't start, avoiding tens of MB of traffic the moment you open a page
-- Dynamic pages (infinite scroll, SPA) get newly inserted paragraphs translated too
+- Dynamic pages (infinite scroll, SPA) get newly inserted paragraphs translated too: only the newly inserted subtrees are re-scanned, never the whole page over and over
 - When done the button becomes "Translated N paragraphs · collapse"; clicking collapses; clicking again restores without re-requesting translation
 - A paragraph that fails to translate only affects that one paragraph (error shown in place) and does not affect the ones after it
 
@@ -89,6 +90,8 @@ Japanese → Chinese  =  (Japanese → English)  +  (English → Chinese)
 This requires installing two packs at once on the language-pack management page, which the UI clearly marks as "needs 2 language packs". The routing is done internally by bergamot at runtime and is invisible to the user.
 
 A single language pack is about **25–50 MB**; after download it is unpacked into Cache Storage and the model files' SHA-256 (provided in `models.json`) is verified — on verification failure the cache is discarded and the user is prompted to re-download.
+
+**The engine never cold-starts for a status query**: MV3 kills the Service Worker after ~30s idle, but the offscreen document outlives it with the unpacked packs still in memory. After the port drops, the offscreen document reconnects on its own (the reconnect itself wakes the SW), and the background waits for the old host to come back before ever closing and rebuilding it — intermittent use (a paragraph every few minutes) no longer pays "read + decompress + SHA-256 verify + recompile WASM" each time. High-frequency queries like "which packs are installed" read local storage only and never wake the engine. If the worker ever crashes, the next translation rebuilds the engine in place instead of failing forever.
 
 ## Privacy
 
@@ -139,5 +142,7 @@ scripts/              bundling and engine-verification scripts
 - Language packs are English-centric; translating between Chinese and non-English languages needs routing, doubling size and time
 - The WASM runtime is about 5 MB; with language packs, memory usage rises noticeably after loading
 - Language detection is a lightweight heuristic based on character ranges and common function words; it is only a suggestion and can be changed manually in the UI
+- Main-content extraction is likewise a pure DOM heuristic: exotic layouts may mistake a sidebar for the article, or fail to find a content root and translate a few extra blocks; the fallback direction is always "better to translate too much than to miss the article"
+- A resident offscreen document keeps the loaded packs (tens of MB of memory) until the extension is reloaded or removed — memory traded for "no cold start on the second translation"
 - Some custom editors (e.g. certain rich-text frameworks) reject programmatic filling, in which case the panel prompts you to use copy instead
 - After installing the extension you need to refresh already-open pages
