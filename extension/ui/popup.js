@@ -118,12 +118,15 @@ $('manage').onclick = () => chrome.runtime.openOptionsPage();
 // 整页双语对照和悬浮按钮默认开（这是主要用法），悬停按钮默认关。
 function bindToggle(id, key, defaultValue) {
   const toggle = $(id);
-  toggle.checked = defaultValue;
+  // 默认开的开关在 popup.html 里已写好 checked，异步读只是校正，
+  // 不会出现「打开弹窗时肉眼可见地跳一下」
   chrome.storage.local.get(key)
     .then(stored => {
       toggle.checked = stored?.[key] === undefined ? defaultValue : Boolean(stored[key]);
     })
-    .catch(() => { /* 读不到就用默认值 */ });
+    .catch(() => {
+      toggle.checked = defaultValue; // 读不到就用默认值
+    });
   toggle.onchange = () => {
     chrome.storage.local.set({ [key]: toggle.checked });
   };
@@ -132,7 +135,7 @@ function bindToggle(id, key, defaultValue) {
 
 bindToggle('auto', AUTO_STORAGE_KEY, true);
 bindToggle('page', PAGE_STORAGE_KEY, true);
-const hoverToggle = bindToggle('hover', HOVER_STORAGE_KEY, false);
+bindToggle('hover', HOVER_STORAGE_KEY, false);
 
 // Service Worker 会把引擎进度广播给扩展页面
 chrome.runtime.onMessage.addListener(message => {

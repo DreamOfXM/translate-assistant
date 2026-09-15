@@ -455,13 +455,27 @@ const hoverReader = createHoverReader({
   translateParagraph
 });
 
-/** 页面文字取样，用来判断整页是什么语言 */
+/**
+ * 页面文字取样，用来判断整页是什么语言。
+ * 不用 body.innerText：它会强制整页重排，而且这只在页面加载时跑一次，不值得。
+ * 也不用 textContent：它会把 script/style 里的代码当成正文文字，污染语言判定。
+ * 改为自顶向下走 DOM，攒够 800 字立刻停手。
+ */
 function pageSample() {
-  const body = document.body;
-  const text = typeof body?.innerText === 'string' && body.innerText.trim()
-    ? body.innerText
-    : (body?.textContent ?? '');
-  return text.slice(0, 800);
+  const body = document.body ?? document.documentElement;
+  if (!body) return '';
+  const limit = 800;
+  let out = '';
+  const walk = node => {
+    for (const child of node.childNodes) {
+      if (out.length >= limit) return;
+      if (child.nodeType === Node.TEXT_NODE) out += child.data;
+      else if (child.nodeType === Node.ELEMENT_NODE &&
+        !/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(child.tagName)) walk(child);
+    }
+  };
+  walk(body);
+  return out.slice(0, limit);
 }
 
 /** 判断整页是什么语言：按中英文字占比，汉字占多数才算中文页（见 languages.js） */

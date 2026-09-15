@@ -10,6 +10,20 @@ export const SEGMENT_LIMIT = 900;
 /** 单次请求允许的最大总字符数，超过则要求用户自行缩减 */
 export const MAX_TEXT_LENGTH = 20000;
 
+/** 高代理项 U+D800–U+DBFF，与紧随其后的低代理项一起组成一个 U+10000 以上的字符 */
+const isHighSurrogate = code => code >= 0xd800 && code <= 0xdbff;
+const isLowSurrogate = code => code >= 0xdc00 && code <= 0xdfff;
+
+/**
+ * 切点 index 是否正好把一个代理对劈成两半。
+ * emoji、CJK 扩展 B 汉字等 U+10000 以上的字符占两个 UTF-16 单元，
+ * 半个字符送进翻译引擎会变成乱码，硬切时必须避开。
+ */
+function splitsSurrogatePair(text, index) {
+  return index > 0 && index < text.length &&
+    isHighSurrogate(text.charCodeAt(index - 1)) && isLowSurrogate(text.charCodeAt(index));
+}
+
 /**
  * 把长文本切成不超过 limit 的片段。
  * 优先在句子边界断开；单个句子本身超长时再按字符硬切。
@@ -39,8 +53,13 @@ export function splitIntoSegments(text, limit = SEGMENT_LIMIT) {
     if (sentence.length > size) {
       flush();
       // 单个句子仍然过长：按字符硬切，避免在词中间断开得太离谱
-      for (let offset = 0; offset < sentence.length; offset += size) {
-        segments.push(sentence.slice(offset, offset + size));
+      for (let offset = 0; offset < sentence.length;) {
+        let end = offset + size;
+        // 切点劈开代理对时把边界后移 1，宁可这一段多出 1 个 UTF-16 单元也不送半个字符进引擎
+        if (splitsSurrogatePair(sentence, end)) end++;
+        end = Math.min(end, sentence.length);
+        segments.push(sentence.slice(offset, end));
+        offset = end;
       }
       continue;
     }

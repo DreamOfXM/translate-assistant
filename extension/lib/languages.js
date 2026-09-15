@@ -62,6 +62,75 @@ export function isKnownLanguage(code) {
 }
 
 /**
+ * 脚本区间表：语言代码 → 该脚本占用的 Unicode 区间。区间互不重叠，且全部落在 BMP 内。
+ * 数组顺序就是判定优先级：假名必须先于汉字，否则日语会被误判成中文；
+ * 汉字先于其余脚本，其余脚本按原来的先后顺序排列。
+ */
+const SCRIPT_RANGES = [
+  ['ja', [[0x3040, 0x309f], [0x30a0, 0x30ff], [0x31f0, 0x31ff]]],
+  ['ko', [[0xac00, 0xd7af], [0x1100, 0x11ff], [0x3130, 0x318f]]],
+  ['zh', [[0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xf900, 0xfaff]]],
+  ['ru', [[0x0400, 0x04ff]]],
+  ['th', [[0x0e00, 0x0e7f]]],
+  ['ar', [[0x0600, 0x06ff], [0x0750, 0x077f]]],
+  ['he', [[0x0590, 0x05ff]]],
+  ['hi', [[0x0900, 0x097f]]],
+  ['el', [[0x0370, 0x03ff]]]
+];
+
+const scriptIndexOf = code => SCRIPT_RANGES.findIndex(([item]) => item === code);
+const KANA_INDEX = scriptIndexOf('ja');
+const HANGUL_INDEX = scriptIndexOf('ko');
+const KANJI_INDEX = scriptIndexOf('zh');
+
+/**
+ * 码位 → 脚本序号（1 起，0 表示不属于任何已登记脚本）的直查表。
+ *
+ * 用 64KB 常驻内存换掉「每个脚本各扫一遍样本」：识别函数在整页扫描时每段都要调一次，
+ * 悬停时还会反复调，逐区间比对会把成本放大成 字符数 × 区间数（2000 字符样本约 2.4 万次
+ * 迭代，且每次迭代都要新建一个单字符字符串）。查表后每个字符只做一次下标读取。
+ *
+ * 表只覆盖 BMP。增补平面字符（emoji、CJK 扩展 B 等）由高低代理项组成，两个代理项都落在
+ * 0xD800–0xDFFF，不在任何登记区间内，因此按 UTF-16 单元遍历与原来按码位遍历的计数结果一致。
+ */
+const SCRIPT_BUCKET = new Uint8Array(0x10000);
+SCRIPT_RANGES.forEach(([, ranges], index) => {
+  for (const [start, end] of ranges) SCRIPT_BUCKET.fill(index + 1, start, end + 1);
+});
+
+/** 拉丁字母计数在 countScripts 返回值里占用的槽位（紧跟在各脚本之后） */
+const LATIN_INDEX = SCRIPT_RANGES.length;
+
+/** 假名在直查表里的桶号（桶号从 1 起，0 表示不属于任何已登记脚本） */
+const KANA_BUCKET = KANA_INDEX + 1;
+
+/**
+ * 单趟遍历样本，同时累加各脚本的命中字符数和拉丁字母数。
+ *
+ * 命中假名时立即返回 null：假名的优先级高于其它所有脚本，出现一个就足以定论为日语，
+ * 剩下的样本不必再数。返回 null 而不是填了一半的计数数组，是为了让调用方无法误用
+ * 那些不完整的计数——拿到 null 就只能返回 'ja'。
+ *
+ * @param {string} sample
+ * @returns {Uint32Array|null} 下标 0..SCRIPT_RANGES.length-1 对应各脚本，
+ *   LATIN_INDEX 对应拉丁字母；样本里出现假名时返回 null
+ */
+function countScripts(sample) {
+  const counts = new Uint32Array(LATIN_INDEX + 1);
+  for (let index = 0; index < sample.length; index++) {
+    const code = sample.charCodeAt(index);
+    const bucket = SCRIPT_BUCKET[code];
+    if (bucket) {
+      if (bucket === KANA_BUCKET) return null;
+      counts[bucket - 1]++;
+    } else if ((code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)) {
+      counts[LATIN_INDEX]++;
+    }
+  }
+  return counts;
+}
+
+/**
  * 基于字符区间的轻量语言识别。只用于给出建议，用户可以手动覆盖。
  * 不调用任何模型或网络，也没有额外体积。
  * @param {string} text
@@ -71,37 +140,11 @@ export function detectLanguage(text) {
   const sample = (text ?? '').slice(0, 2000);
   if (!sample.trim()) return FALLBACK_LANGUAGE;
 
-  const count = ranges => {
-    let total = 0;
-    for (const [start, end] of ranges) {
-      for (const character of sample) {
-        const point = character.codePointAt(0);
-        if (point >= start && point <= end) total++;
-      }
-    }
-    return total;
-  };
-
-  // 假名先于汉字判断，否则日语会被误判为中文
-  const kana = count([[0x3040, 0x309f], [0x30a0, 0x30ff], [0x31f0, 0x31ff]]);
-  if (kana > 0) return 'ja';
-
-  const hangul = count([[0xac00, 0xd7af], [0x1100, 0x11ff], [0x3130, 0x318f]]);
-  if (hangul > 0) return 'ko';
-
-  const cjk = count([[0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xf900, 0xfaff]]);
-  if (cjk > 0) return 'zh';
-
-  const scripts = [
-    ['ru', [[0x0400, 0x04ff]]],
-    ['th', [[0x0e00, 0x0e7f]]],
-    ['ar', [[0x0600, 0x06ff], [0x0750, 0x077f]]],
-    ['he', [[0x0590, 0x05ff]]],
-    ['hi', [[0x0900, 0x097f]]],
-    ['el', [[0x0370, 0x03ff]]]
-  ];
-  for (const [code, ranges] of scripts) {
-    if (count(ranges) > 0) return code;
+  // 一趟扫描拿到全部脚本计数，再按 SCRIPT_RANGES 的优先级顺序决策
+  const counts = countScripts(sample);
+  if (!counts) return 'ja'; // 扫描途中命中假名，已提前定论
+  for (let index = 0; index < SCRIPT_RANGES.length; index++) {
+    if (counts[index] > 0) return SCRIPT_RANGES[index][0];
   }
 
   // 拉丁字母：按命中次数打分，避免 "is"、"a" 这类通用词把英文误判成别的语言。
@@ -138,12 +181,14 @@ export function detectLanguage(text) {
  */
 export function detectLanguageByRatio(text) {
   const sample = (text ?? '').slice(0, 2000);
+  // 复用同一趟扫描：原来要跑四次正则（假名、韩文、汉字、拉丁）才能拿到这几个计数
+  const counts = countScripts(sample);
   // 假名和韩文必须先于汉字判断：日语里汉字很多，直接比汉字/英文字数会把日语判成中文
-  if (/[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff]/.test(sample)) return 'ja';
-  if (/[\uac00-\ud7af\u1100-\u11ff\u3130-\u318f]/.test(sample)) return 'ko';
+  if (!counts) return 'ja'; // 扫描途中命中假名，已提前定论
+  if (counts[HANGUL_INDEX] > 0) return 'ko';
 
-  const kanji = (sample.match(/[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/g) ?? []).length;
-  const latin = (sample.match(/[A-Za-z]/g) ?? []).length;
+  const kanji = counts[KANJI_INDEX];
+  const latin = counts[LATIN_INDEX];
   if (!latin && !kanji) return detectLanguage(sample);
   if (kanji > latin) return 'zh';
   // 剔掉零星汉字再交给按脚本判断的规则，避免被它们带偏

@@ -155,7 +155,6 @@ function renderCombos() {
 }
 
 function renderPacks() {
-  const available = catalog.map(item => item.key);
   let items = catalog;
   if (keyword) {
     const lower = keyword.toLowerCase();
@@ -164,7 +163,6 @@ function renderPacks() {
       languageName(item.from).includes(lower) ||
       languageName(item.to).includes(lower));
   }
-  void available;
 
   if (!items.length) {
     packList.innerHTML = '<p class="empty">没有匹配的语言包。</p>';

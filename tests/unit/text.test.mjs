@@ -37,6 +37,28 @@ test('超长单句按字符硬切，不静默丢弃', () => {
   assert.equal(segments.join(''), long);
 });
 
+test('硬切不会劈开代理对，半个字符不进引擎', () => {
+  // emoji 和 CJK 扩展 B 汉字都在 U+10000 以上，各占两个 UTF-16 单元；
+  // 开头补一个 ASCII 字符，让切点正好落在代理对中间
+  const long = 'a' + '😀'.repeat(20) + '𠮷野家'.repeat(10);
+  const segments = splitIntoSegments(long, 10);
+
+  assert.ok(segments.length > 1, '应当分段');
+  assert.equal(segments.join(''), long, '拼回去不应丢字符');
+  assert.deepEqual([...segments.join('')], [...long], '码位序列应完整保留');
+
+  for (const part of segments) {
+    const last = part.charCodeAt(part.length - 1);
+    const first = part.charCodeAt(0);
+    assert.ok(!(last >= 0xd800 && last <= 0xdbff), `片段以孤立高代理项结尾：${JSON.stringify(part)}`);
+    assert.ok(!(first >= 0xdc00 && first <= 0xdfff), `片段以孤立低代理项开头：${JSON.stringify(part)}`);
+    assert.ok(part.length <= 11, '为保住代理对，最多只允许比上限多出 1 个 UTF-16 单元');
+  }
+
+  // 确认真的走到了「边界后移」这条分支，否则上面的断言可能是空过
+  assert.ok(segments.some(part => part.length === 11), '应至少有一处为了保住代理对而把切点后移');
+});
+
 test('planTranslation 对超长文本给出提示而不是截断', () => {
   const plan = planTranslation('a'.repeat(MAX_TEXT_LENGTH + 1));
   assert.equal(plan.ok, false);
