@@ -7,6 +7,8 @@
  *
  * 整页双语对照：右下角悬浮「双语对照」按钮，点击后从上到下逐段自动翻译，
  * 译文逐段插在原文下面（类似沉浸式翻译）；再点一下收起全部译文。
+ * 翻译范围限定在页面正文主体（见 lib/content-extract.js），导航、侧栏、广告、页脚、
+ * 评论都不插译文；识别不出正文根时退回翻所有合格块，宁可多翻也不漏掉真正的正文。
  *
  * 边界：
  * - 只做「读」的方向：源语言自动识别，目标固定中文；中文段落不出按钮。
@@ -16,6 +18,7 @@
 
 import { detectLanguageByRatio } from './languages.js';
 import { MAX_TEXT_LENGTH } from './text.js';
+import { findMainContentRoot, shouldSkipBlock } from './content-extract.js';
 
 /** popup 与 content script 共用的开关存储键 */
 export const HOVER_STORAGE_KEY = 'hoverTranslate';
@@ -29,6 +32,9 @@ const BLOCK_SELECTOR =
 
 /** 整页翻译一次最多处理的段落数，防止超长页面把引擎占死 */
 const BATCH_LIMIT = 200;
+
+/** DOM 变动的合并窗口：无限滚动/SPA 一次能连着插入几十个节点，逐个重扫没有意义 */
+const MUTATION_DEBOUNCE = 400;
 
 const BUBBLE_IDLE = '双语对照';
 
@@ -157,17 +163,46 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
-  let active = false;              // 翻译队列是否还在工作
-  let allRequested = false;        // 手动点过「双语对照」：不在视口的也翻
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
   const batchNodes = [];           // 本页插入过的全部译文节点（含单个点的）
   let discovered = 0;
-  let completed = 0;
+  // 用代号而不是布尔量标记「队列正在被消费」：stop() 之后在途的 pump 可能还卡在 await 上，
+  // 裸布尔量会让新的 enqueue 启动第二个 pump，两个循环并发消费同一个队列
+  let generation = 0;              // stop() 时递增，在途 pump 靠它判断自己是否已作废
+  let running = -1;                // 正在消费队列的 pump 代号，-1 表示空闲
   let observer = null;             // IntersectionObserver：进视口才翻
   let mutationObserver = null;
   let mutationTimer = null;
+  const pendingRoots = new Set();  // 页面新插入、等着重扫的子树
+
+  /**
+   * 节点是否属于扩展自己。两处要用：
+   * 一是鼠标事件——pill 挂在扩展的 Shadow DOM 里，事件冒泡到 document 时 target/relatedTarget
+   * 会被重定向成 shadow host，光看选择器认不出来；
+   * 二是 MutationObserver——扩展插入译文节点本身就是 DOM 变动，认不出来就会自己触发自己。
+   */
+  const isOwnUi = node => {
+    if (!node) return false;
+    const host = getHost();
+    if (host && (node === host || host.contains(node))) return true;
+    return Boolean(node.closest?.('.lt-para-host'));
+  };
+
+  /** 译文节点被页面拿掉后（SPA 重渲染、无限滚动回收）就别再持有它，否则数组会一直涨 */
+  const pruneBatchNodes = () => {
+    for (let index = batchNodes.length - 1; index >= 0; index--) {
+      if (!batchNodes[index].host.isConnected) batchNodes.splice(index, 1);
+    }
+  };
+
+  /** 当前真正显示着译文的段落数：静默跳过的、被页面移除的自然不会算进去 */
+  const translatedCount = () => batchNodes.reduce(
+    (total, node) => total + (node.host.isConnected && !node.host.hidden ? 1 : 0), 0);
+
+  /** 队列是否正在被消费；被 stop() 作废的那一轮不算 */
+  const isPumping = () => running === generation;
 
   const hidePill = () => {
     pill?.remove();
@@ -200,7 +235,10 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     positionPill();
   };
 
-  /** 把一段译文插到段落旁边；已有译文时只是重新展开 */
+  /**
+   * 把一段译文插到段落旁边；已有译文时只是重新展开。
+   * @returns {Promise<object|null>} 译文节点控制器；null 表示这段被静默跳过（本身就是中文）
+   */
   const translateInto = async el => {
     const existing = results.get(el);
     if (existing && existing.host.isConnected) {
@@ -250,12 +288,25 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
 
   /**
    * 收集要翻译的段落：只取「叶子块」（内部不再包含更小的块），
-   * 避免 `blockquote > p` 被翻两遍；过滤中文段和输入框。
+   * 避免 `blockquote > p` 被翻两遍；过滤中文段、输入框，以及导航/侧栏/广告/评论这些非正文块。
+   *
+   * 整页扫描时先把范围收窄到正文根；识别不出正文根（例如整页就是 body 下几个裸段落）
+   * 就退回翻所有合格块——宁可多翻，也不能把真正的正文漏掉。
+   * @param {Document|Element} root 扫描范围；传 document 时才做正文根收窄
    */
   const collectBlocks = (root = document) => {
+    const contentRoot = findMainContentRoot(document);
+    const scope = root === document ? (contentRoot ?? document) : root;
+    const candidates = [...scope.querySelectorAll(BLOCK_SELECTOR)];
+    // 页面新插入的可能就是一个裸段落，而 querySelectorAll 不含自身，得单独补上
+    if (scope.nodeType === 1 && scope.matches(BLOCK_SELECTOR)) candidates.unshift(scope);
+
     const blocks = [];
-    for (const el of root.querySelectorAll(BLOCK_SELECTOR)) {
+    for (const el of candidates) {
       if (blocks.length >= BATCH_LIMIT) break;
+      // 认定了正文根之后，正文以外新冒出来的内容（评论区、推荐位）不再翻
+      if (contentRoot && !contentRoot.contains(el)) continue;
+      if (shouldSkipBlock(el, contentRoot)) continue;
       if (el.closest('input,textarea,select,[contenteditable="true"]')) continue;
       if (el.isContentEditable) continue;
       if (el.querySelector(BLOCK_SELECTOR)) continue;
@@ -269,6 +320,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   };
 
   const hideAll = () => {
+    pruneBatchNodes();
     for (const node of batchNodes) node.host.hidden = true;
     queued = new WeakSet();   // 收起后再点「双语对照」要能重新入队
     if (bubble) bubble.textContent = BUBBLE_IDLE;
@@ -276,28 +328,40 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
 
   const updateBubble = () => {
     if (!bubble) return;
-    bubble.textContent = queue.length
-      ? `翻译中 ${completed}/${Math.max(discovered, completed)} · 点击停止`
-      : completed
-        ? `已译 ${completed} 段 · 收起`
-        : BUBBLE_IDLE;
+    const done = translatedCount();
+    if (queue.length) {
+      // 总数至少是「已译 + 待译」，否则会出现 3/2 这种倒退的进度
+      bubble.textContent = `翻译中 ${done}/${Math.max(discovered, done + queue.length)} · 点击停止`;
+      return;
+    }
+    bubble.textContent = done ? `已译 ${done} 段 · 收起` : BUBBLE_IDLE;
   };
 
   /** 队列串行消费：翻译本来就是排队执行的，页面本身不能被卡住 */
   const pump = async () => {
-    if (active) return;   // 已经在消费队列，新段落会被同一个循环带走
-    active = true;
-    while (queue.length) {
-      const el = queue.shift();
-      if (!el?.isConnected) continue;
-      await translateInto(el);
-      completed += 1;
-      updateBubble();
-      // 每段之间让出主线程，滚动和输入不掉帧
-      await new Promise(resolve => setTimeout(resolve, 0));
+    if (isPumping()) return;   // 已经在消费队列，新段落会被同一个循环带走
+    const token = generation;
+    running = token;
+    let translated = 0;
+    try {
+      while (queue.length) {
+        const el = queue.shift();
+        if (!el?.isConnected) continue;
+        await translateInto(el);
+        // stop() 可能在 await 期间发生：这一轮已经作废，剩下的交给新一轮，别抢同一个队列
+        if (token !== generation) return;
+        if (++translated % 25 === 0) pruneBatchNodes();
+        updateBubble();
+        // 每段之间让出主线程，滚动和输入不掉帧
+        await new Promise(resolve => setTimeout(resolve, 0));
+        if (token !== generation) return;
+      }
+    } finally {
+      if (token === generation) {
+        running = -1;
+        updateBubble();
+      }
     }
-    active = false;
-    updateBubble();
   };
 
   const enqueue = el => {
@@ -311,22 +375,25 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   const ensureObserver = () => {
     if (observer || typeof IntersectionObserver !== 'function') return observer;
     observer = new IntersectionObserver(entries => {
-      let added = false;
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         observer.unobserve(entry.target);
-        queue.push(entry.target);
-        added = true;
+        // 走 enqueue 而不是直接 push：queued 去重集合得是唯一的入队口径，
+        // 否则同一段落可能被视口和 runAll 各排一次
+        enqueue(entry.target);
       }
-      if (added) pump();
     }, { rootMargin: '300px 0px' });
     return observer;
   };
 
-  /** 把新出现的段落纳入观察；immediate 或没有观察器时直接入队 */
+  /**
+   * 把新出现的段落纳入观察；immediate 或没有观察器时直接入队。
+   * @returns {Element[]} 这次扫到的合格段落
+   */
   const scan = (root = document, { immediate = false } = {}) => {
     const observerReady = ensureObserver();
-    for (const el of collectBlocks(root)) {
+    const blocks = collectBlocks(root);
+    for (const el of blocks) {
       const existing = results.get(el);
       // 译文节点被页面拿掉了（SPA 重渲染等），这段要当成没翻过，重新来
       const stale = Boolean(existing && !existing.host.isConnected);
@@ -340,14 +407,33 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       if (immediate || !observerReady) enqueue(el);
       else observerReady.observe(el);
     }
+    return blocks;
+  };
+
+  const flushPendingRoots = () => {
+    mutationTimer = null;
+    const roots = [...pendingRoots];
+    pendingRoots.clear();
+    for (const node of roots) {
+      if (node.isConnected) scan(node);
+    }
   };
 
   /** 动态页面（无限滚动、SPA）新插入的段落也要翻 */
   const watchDom = () => {
     if (mutationObserver || typeof MutationObserver !== 'function') return;
-    mutationObserver = new MutationObserver(() => {
+    mutationObserver = new MutationObserver(mutations => {
+      // 只扫新插入的子树。整页重扫既慢，又会被扩展自己插入译文节点的变动再次触发，
+      // 形成「插入 → 重扫 → 插入」的自激循环
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== 1 || isOwnUi(node)) continue;
+          pendingRoots.add(node);
+        }
+      }
+      if (!pendingRoots.size) return;
       clearTimeout(mutationTimer);
-      mutationTimer = setTimeout(() => scan(), 400);
+      mutationTimer = setTimeout(flushPendingRoots, MUTATION_DEBOUNCE);
     });
     mutationObserver.observe(document.body ?? document.documentElement, {
       childList: true,
@@ -361,15 +447,17 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     mutationObserver?.disconnect();
     mutationObserver = null;
     clearTimeout(mutationTimer);
+    mutationTimer = null;
+    pendingRoots.clear();
   };
 
   const stop = () => {
-    active = false;
+    generation += 1;          // 作废在途的那一轮 pump，别让它和新一轮抢同一个队列
     liveMode = false;
-    allRequested = false;
     queue.length = 0;
     queued = new WeakSet();   // 停止后重新开始时要能重新入队
     stopWatching();
+    pruneBatchNodes();
     updateBubble();
   };
 
@@ -377,7 +465,6 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   const startLive = () => {
     if (liveMode) return;
     liveMode = true;
-    allRequested = false;
     scan();
     watchDom();
     pump();
@@ -385,13 +472,14 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
 
   /** 手动点「双语对照」：整页都翻，不只在视口里的 */
   const runAll = () => {
-    allRequested = true;
     liveMode = false;
-    scan(document, { immediate: true });
+    const blocks = scan(document, { immediate: true });
     // 之前只是被观察着的段落（还没滚到）也一起翻
-    for (const el of collectBlocks()) enqueue(el);
+    for (const el of blocks) enqueue(el);
     watchDom();
-    if (!queue.length && bubble) {
+    // 这里不能用队列长度判断：enqueue 里的 pump 会同步取走队首，
+    // 只剩一段的页面会被误报成「没有需要翻译的段落」
+    if (!blocks.length && bubble) {
       bubble.textContent = '没有需要翻译的段落';
       setTimeout(() => {
         if (!queue.length && bubble) bubble.textContent = BUBBLE_IDLE;
@@ -404,15 +492,15 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     if (bubble?.isConnected) return bubble;
     bubble = element('button', 'lt-bubble', {
       type: 'button',
-      title: '整页逐段翻译，译文插在每段原文下面',
+      title: '逐段翻译正文，译文插在每段原文下面',
       textContent: BUBBLE_IDLE
     });
     bubble.onclick = () => {
-      if (active && queue.length) {
+      if (isPumping() && queue.length) {
         stop();
         return;
       }
-      if (batchNodes.some(node => node.host.isConnected && !node.host.hidden)) {
+      if (translatedCount()) {
         hideAll();
         return;
       }
@@ -444,8 +532,18 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
 
   const onMouseOut = event => {
     if (!pill || !target) return;
-    // 鼠标移出目标段落且不是移向按钮本身时收起按钮
-    if (event.target === target && !event.relatedTarget?.closest?.(BLOCK_SELECTOR)) hidePill();
+    const related = event.relatedTarget;
+    // 鼠标从段落移向 pill 时，relatedTarget 会被 Shadow DOM 重定向成扩展的 host
+    // （div#local-translator-root），它不匹配 BLOCK_SELECTOR；不拦住这一下，
+    // 按钮会在用户点下去之前就消失
+    if (isOwnUi(related)) return;
+    // 事件是从扩展自己的 UI 里冒出来的（鼠标离开 pill）：不是移回段落就把按钮收掉，别一直留着
+    if (isOwnUi(event.target) || event.composedPath?.().includes(getHost())) {
+      if (!related?.closest?.(BLOCK_SELECTOR)) hidePill();
+      return;
+    }
+    // 鼠标移出目标段落且不是移向另一个段落时收起按钮
+    if (event.target === target && !related?.closest?.(BLOCK_SELECTOR)) hidePill();
   };
 
   document.addEventListener('mouseover', onMouseOver, { passive: true });
