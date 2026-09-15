@@ -10,6 +10,13 @@ import { MESSAGES, EVENTS, HOST, validateTranslateRequest, isValidDirection, pac
 const OFFSCREEN_DOCUMENT = 'offscreen.html';
 const REQUEST_TIMEOUT = 300000;
 const STARTUP_TIMEOUT = 30000;
+/** SW 被回收后，留给旧离屏文档自己重连回来的宽限期。
+ *  离屏文档的重连退避从 150ms 起（见 offscreen.js），1.5s 足够覆盖前几次重试，
+ *  又不至于让用户在真的需要重建时干等。 */
+const RECONNECT_GRACE = 1500;
+/** GET_DIRECTION_STATUS 里「顺手合并引擎内存状态」的超时。
+ *  storage 的结果本身已经完整，合并只是锦上添花，所以不能让它拖慢这条高频查询。 */
+const STATUS_MERGE_TIMEOUT = 4000;
 const MENU_ID = 'translate-selection-local';
 
 let hostPort = null;
@@ -42,28 +49,52 @@ function waitForHost(timeout) {
 
 /* ------------------------------- 离屏文档生命周期 ------------------------------ */
 
+/**
+ * 当前有哪些离屏文档上下文。
+ * 返回 null 表示这个浏览器问不出来（chrome.runtime.getContexts 是 Chrome 116+ 才有），
+ * 此时只能靠 createDocument 抛「已存在」来兜底判断。
+ */
+async function offscreenContexts() {
+  if (typeof chrome.runtime.getContexts !== 'function') return null;
+  try {
+    return await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 创建离屏文档。
+ * @returns {Promise<boolean>} false 表示「已经存在一个」，调用方应当先等它重连，而不是当成失败
+ */
 async function createOffscreenDocument() {
   if (typeof chrome.offscreen?.createDocument !== 'function') {
     throw new Error('当前浏览器不支持离屏文档，请使用 Chrome 109 及以上版本。');
   }
-  const existing = await chrome.runtime.getContexts?.({ contextTypes: ['OFFSCREEN_DOCUMENT'] }) ?? [];
-
-  // Service Worker 重启后，上一次的离屏文档可能还在，但它的端口已经断开且不会自己重连。
-  // 与其等它超时，不如直接关掉重建，保证拿到一个会主动连回来的实例。
-  if (existing.length) {
-    await chrome.offscreen.closeDocument().catch(() => {});
-  }
-
   try {
     await chrome.offscreen.createDocument({
       url: chrome.runtime.getURL(OFFSCREEN_DOCUMENT),
       reasons: [chrome.offscreen.Reason?.WORKERS ?? 'WORKERS'],
       justification: '在离屏文档中加载本地 WASM 翻译引擎；Chrome 扩展的 Service Worker 无法创建 Web Worker。'
     });
+    return true;
   } catch (error) {
-    // 已经存在同一个离屏文档时忽略，其它错误照常抛出
-    if (!/single offscreen|already exists|Only one/i.test(String(error?.message))) throw error;
+    // 已经存在同一个离屏文档不算错误，其它错误照常抛出
+    if (/single offscreen|already exists|Only one/i.test(String(error?.message))) return false;
+    throw error;
   }
+}
+
+/**
+ * 等旧离屏文档自己连回来；等不到就关掉，为重建腾位置。
+ *
+ * 关掉是必须的：只要旧文档还在，createDocument 就会一直被「已存在」挡住。
+ */
+async function reuseOrDiscardHost() {
+  await waitForHost(RECONNECT_GRACE).catch(() => {});
+  if (hostPort) return true;
+  await chrome.offscreen.closeDocument().catch(() => {});
+  return false;
 }
 
 async function ensureHost() {
@@ -71,7 +102,24 @@ async function ensureHost() {
   if (creating) return creating;
 
   creating = (async () => {
-    await createOffscreenDocument();
+    // 离屏文档比 SW 长寿：SW 空闲 30s 被回收后，它内存里已解压的模型还在，
+    // 并且它会在端口断开后自己重连（重连本身就会把 SW 唤醒，见 offscreen.js）。
+    // 所以这里优先等它连回来，而不是像以前那样直接 close 重建 —— 重建意味着
+    // 重新从 Cache Storage 读 ~50MB、解压、SHA-256 校验、重启 worker、重编译 WASM，
+    // 对「隔一会儿再翻一次」这种最常见的间歇使用场景，每次都要白付一遍。
+    if ((await offscreenContexts())?.length) {
+      if (await reuseOrDiscardHost()) return hostPort;
+    }
+
+    if (!await createOffscreenDocument()) {
+      // 问不到上下文列表（Chrome 116 以下），或者刚好在这期间文档被建了出来：
+      // 同样先给它一次重连机会，等不到就关掉重建。
+      if (await reuseOrDiscardHost()) return hostPort;
+      // 这里再返回 false 说明状态已经不正常了，交给下面的 waitForHost 超时，
+      // 超时后的 catch 会把文档关掉，下一次调用即可恢复。
+      await createOffscreenDocument();
+    }
+
     // 注意：createDocument 返回时离屏文档往往已经连上了，
     // 所以必须用「等下一次连接」的方式，而不是在 await 之后才挂一次性 resolve。
     await waitForHost(STARTUP_TIMEOUT);
@@ -112,6 +160,13 @@ chrome.runtime.onConnect.addListener(port => {
       forwardProgress(message.tabId, message.progress);
       return;
     }
+    // 离屏文档每次（重）连上都会补发一条 ready。onConnect 里已经 notifyReady 过一次，
+    // 这里再调一次是幂等的：它确认的是「端口通了且消息处理器已挂好」，
+    // 顺便避免这条消息落到下面的 pending 查找里变成没人处理的死信。
+    if (message?.type === 'ready') {
+      notifyReady();
+      return;
+    }
     const entry = pending.get(message.id);
     if (!entry) return;
     pending.delete(message.id);
@@ -126,7 +181,10 @@ chrome.runtime.onConnect.addListener(port => {
   });
 
   port.onDisconnect.addListener(() => {
-    hostPort = null;
+    // 只清理「当前这一条」端口。离屏文档会自动重连，新端口可能已经赋给 hostPort 了，
+    // 旧端口迟到的 onDisconnect 不能把好端端的连接抹掉。
+    if (hostPort === port) hostPort = null;
+    // 但挂起的请求必须全部作废：它们是发在这条已死的端口上的，永远等不到回复。
     for (const [, entry] of pending) {
       clearTimeout(entry.timer);
       entry.reject(new Error('翻译引擎已停止，请重试。'));
@@ -193,9 +251,21 @@ async function handle(message, sender) {
     }
 
     case MESSAGES.GET_DIRECTION_STATUS: {
-      await ensureHost();
-      const result = await request(HOST.OPS.STATUS, {}, 60000);
-      return { installed: [...new Set([...(await storedPacks()), ...(result.installed ?? [])])] };
+      // 已安装列表本来就落盘在 chrome.storage.local（每次翻译/预载后 rememberPacks 都会写），
+      // 而 content script 每开一个页面、popup/options 每次打开都要查一遍。
+      // 为了读它去 ensureHost() 拉起离屏文档 + WASM 引擎 + 抓 registry 是纯浪费，
+      // 所以这里只读 storage，绝不主动启动引擎。
+      const installed = await storedPacks();
+      // 引擎宿主恰好已经在跑，就顺手合并一下内存里的状态（best-effort）：
+      // 覆盖「刚加载完还没落盘」和「storage 被清了但模型还在内存」这两种边界。
+      // 用短超时，宿主万一卡住也不能拖死这条高频路径。
+      if (!hostPort) return { installed };
+      try {
+        const result = await request(HOST.OPS.STATUS, {}, STATUS_MERGE_TIMEOUT);
+        return { installed: [...new Set([...installed, ...(result.installed ?? [])])] };
+      } catch {
+        return { installed };
+      }
     }
 
     case MESSAGES.PRELOAD_DIRECTION: {

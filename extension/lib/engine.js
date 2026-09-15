@@ -217,6 +217,20 @@ export function createEngine({ downloadTimeout = 300000 } = {}) {
     return backing;
   };
 
+  /**
+   * worker 崩溃后清空引擎，让下一次使用时重建。
+   * 离屏文档比 Service Worker 长寿（断线会自动重连而不是被重建），
+   * 崩溃状态如果粘住不处理，这个宿主就再也翻不了，只能等用户手动重载扩展。
+   * backing 原样保留：它内存里的模型不依赖 worker，重建后不用重新下载解压。
+   */
+  const reset = () => {
+    if (!fatalError) return;
+    const dead = translator;
+    translator = null;
+    fatalError = null;
+    dead?.delete?.()?.catch?.(() => {});
+  };
+
   const getTranslator = () => {
     if (!translator) {
       translator = new LatencyOptimisedTranslator({
@@ -247,9 +261,15 @@ export function createEngine({ downloadTimeout = 300000 } = {}) {
     },
 
     async translate({ text, source, target }) {
-      if (fatalError) throw new Error(`翻译引擎异常：${fatalError.message}`);
-      const response = await getTranslator().translate({ from: source, to: target, text, html: false });
-      return response.target.text;
+      reset();   // 上次崩溃过就先重建引擎，这次翻译就是恢复尝试
+      try {
+        const response = await getTranslator().translate({ from: source, to: target, text, html: false });
+        return response.target.text;
+      } catch (error) {
+        // 恢复尝试又撞上 worker 崩溃：给出和以往一致的提示
+        if (fatalError) throw new Error(`翻译引擎异常：${fatalError.message}`);
+        throw error;
+      }
     },
 
     /**
@@ -265,6 +285,7 @@ export function createEngine({ downloadTimeout = 300000 } = {}) {
 
       const installed = new Set(getBacking().loaded);
 
+      reset();   // 崩溃过就重建 worker，再等它起来
       await getTranslator().worker;
       const previousProgress = getBacking().onProgress;
       try {
