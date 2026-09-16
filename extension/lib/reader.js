@@ -304,7 +304,13 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   /** 可见性按矩形判断，导航模板、广告位这类 0 尺寸块直接跳过 */
   const isVisible = el => {
     const rect = el.getBoundingClientRect();
-    return Boolean(rect.width || rect.height);
+    if (!rect.width || !rect.height) return false;
+    // GitHub 的 sr-only 界面词是 1×1 的 clip 元素：有 rect 但肉眼不可见，
+    // 翻它们会在视觉上凭空插出「最新提交」「历史」这类译文块
+    if (rect.width < 4 && rect.height < 4) return false;
+    // jsdom 单测里没有全局 getComputedStyle，拿不到就当作可见
+    const style = el.ownerDocument?.defaultView?.getComputedStyle?.(el);
+    return !style || (style.visibility !== 'hidden' && style.display !== 'none');
   };
 
   /**

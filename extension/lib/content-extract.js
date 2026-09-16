@@ -41,7 +41,7 @@ const INNER_CHROME_SELECTOR =
  * download 这类正文常用词全部误杀。
  */
 const CHROME_PATTERN =
-  /comment|sidebar|footer|nav|menu|promo|related|share|social|breadcrumb|pagination|widget|sponsor|\bads?\b|\bad[-_]|\badvert/i;
+  /comment|sidebar|footer|nav|menu|promo|related|share|social|breadcrumb|pagination|widget|sponsor|\bads?\b|\bad[-_]|\badvert|sr-only|visually-hidden|screen-?reader|offscreen/i;
 
 /** class/id 命中这些词的容器多半是正文，打分时加分 */
 const CONTENT_PATTERN = /article|body|content|entry|hentry|main|page|post|story|text|document/i;
@@ -70,6 +70,9 @@ const MAX_LINK_DENSITY = 0.5;
 
 /** 短于这个字数的块没有翻译价值（标题除外，标题本来就短） */
 const MIN_BLOCK_TEXT = 8;
+
+/** 表格单元要更长才值得翻：它们多是日期、文件名这类数据而非正文 */
+const MIN_TABLE_CELL_TEXT = 24;
 
 /** 打分时最多细看几个候选：算链接密度要遍历子树，不能对每个容器都来一遍 */
 const TOP_CANDIDATES = 6;
@@ -156,7 +159,10 @@ function hasChromeNaming(el, contentRoot) {
 /** 极短块没有翻译价值；标题本来就短，放过 */
 function isTooShort(el) {
   if (HEADING_TAGS.has(el.tagName)) return false;
-  return textOf(el).length < MIN_BLOCK_TEXT;
+  // 表格单元在网页里多是数据（日期、文件名、状态词、数字），不是可读正文；
+  // 门槛抬高到一整行文字，消掉「Sep 14, 2026」「initial upload」这类噪音
+  const min = el.tagName === 'TD' || el.tagName === 'TH' ? MIN_TABLE_CELL_TEXT : MIN_BLOCK_TEXT;
+  return textOf(el).length < min;
 }
 
 /** 多个元素的最近公共祖先 */

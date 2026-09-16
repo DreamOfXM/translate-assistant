@@ -56,8 +56,7 @@ test('语义容器优先：findMainContentRoot 选中 article 正文', () => {
   assert.equal(root, document.querySelector('article.post'), '应把 article 认成正文根');
 });
 
-test('shouldSkipBlock 跳过导航、侧栏、广告、页脚、评论', () => {
-  const document = articlePage();
+test('shouldSkipBlock 跳过导航、侧栏、广告、页脚、评论', () => {  const document = articlePage();
   const root = findMainContentRoot(document);
 
   const cases = [
@@ -230,6 +229,30 @@ test('looksLikeAppPage：块太少的小页面不参与判定', () => {
     <p>Contact us at example@example.com.</p>
   `);
   assert.equal(looksLikeAppPage(document), false, '块太少时不判工具页，照常走正文识别');
+});
+
+test('shouldSkipBlock：表格单元的短数据（日期、文件名）不算正文', () => {
+  const document = doc(`
+    <table>
+      <tr><th id="h">Last commit message</th><th id="d">Commit date</th></tr>
+      <tr><td id="msg">initial upload</td><td id="date">Sep 14, 2026</td></tr>
+      <tr><td id="long">A genuinely long table cell that carries real sentence content and is worth translating for readers.</td></tr>
+    </table>
+  `);
+  assert.equal(shouldSkipBlock(document.getElementById('h')), true, '短表头是数据不是正文');
+  assert.equal(shouldSkipBlock(document.getElementById('msg')), true, '短 commit 信息是数据');
+  assert.equal(shouldSkipBlock(document.getElementById('date')), true, '日期是数据');
+  assert.equal(shouldSkipBlock(document.getElementById('long')), false, '够长的表格单元仍当正文翻');
+});
+
+test('shouldSkipBlock：sr-only 屏幕阅读器元素按杂讯跳过', () => {
+  const document = doc(`
+    <div id="wrap"><h2 class="sr-only" id="srh">Folders and files</h2><p id="body">${prose('A real paragraph of body text')}</p></div>
+    <nav class="visually-hidden-nav" id="vh"><p id="vhp">Hidden nav paragraph text.</p></nav>
+  `);
+  assert.equal(shouldSkipBlock(document.getElementById('srh')), true, 'class 命中 sr-only 的元素是屏幕阅读器文本');
+  assert.equal(shouldSkipBlock(document.getElementById('vhp')), true, '祖先类名命中 visually-hidden 的按杂讯处理');
+  assert.equal(shouldSkipBlock(document.getElementById('body')), false);
 });
 
 test('保守降级：整页被一个 form 包住时不把 form 当表单控件', () => {
