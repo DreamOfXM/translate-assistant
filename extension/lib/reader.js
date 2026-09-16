@@ -100,13 +100,16 @@ const PARA_STYLES = `
   .lt-wrap { animation: none; }
   .lt-para-ops { transition: none; }
 }
-@media (prefers-color-scheme: dark) {
-  .lt-wrap { background: rgba(56, 189, 248, .12); color: #E2E8F0; }
-  .lt-para-ops { background: rgba(15, 23, 42, .92); box-shadow: 0 1px 5px rgba(0, 0, 0, .45); }
-  .lt-para-ops button { color: #7DD3FC; }
-  .lt-para-ops button:hover { background: rgba(56, 189, 248, .14); }
-  .lt-para-text.lt-para-error { color: #F87171; }
+/* 暗色适配由 JS 检测页面真实背景后加 host.lt-dark（见 isDarkBackground），
+   不用 prefers-color-scheme：页面主题（暗色站点）与系统偏好经常不一致 */
+:host(.lt-dark) .lt-wrap { background: rgba(56, 189, 248, .14); color: #E2E8F0; }
+:host(.lt-dark) .lt-wrap::before {
+  background: linear-gradient(180deg, #0EA5E9, #0D9488);
 }
+:host(.lt-dark) .lt-para-ops { background: rgba(15, 23, 42, .92); box-shadow: 0 1px 5px rgba(0, 0, 0, .45); }
+:host(.lt-dark) .lt-para-ops button { color: #7DD3FC; }
+:host(.lt-dark) .lt-para-ops button:hover { background: rgba(56, 189, 248, .14); }
+:host(.lt-dark) .lt-para-text.lt-para-error { color: #F87171; }
 `;
 
 function element(tag, className, properties = {}) {
@@ -120,6 +123,29 @@ function element(tag, className, properties = {}) {
 function paragraphText(el) {
   const visible = typeof el.innerText === 'string' ? el.innerText : '';
   return String(visible.trim() ? visible : el.textContent ?? '').trim();
+}
+
+/**
+ * 探测元素所在位置页面的实际背景是否为深色。
+ * 页面可能自带暗色主题（data-theme/class 切换），与系统偏好无关——
+ * 译文节点必须跟随页面真实背景，否则深色文字会画在深色背景上看不见。
+ * 逐层向上找第一个非透明背景色，找不到就回落系统偏好。
+ */
+function isDarkBackground(el) {
+  const view = el.ownerDocument?.defaultView;
+  if (!view) return false;
+  let node = el;
+  while (node && node.nodeType === 1) {
+    const bg = view.getComputedStyle?.(node)?.backgroundColor;
+    const m = typeof bg === 'string' && bg.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/);
+    if (m && (m[4] === undefined || Number(m[4]) > 0.5)) {
+      const lum = (0.299 * Number(m[1]) + 0.587 * Number(m[2]) + 0.114 * Number(m[3])) / 255;
+      return lum < 0.5;
+    }
+    node = node.parentElement;
+  }
+  try { return view.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false; }
+  catch { return false; }
 }
 
 /**
@@ -291,6 +317,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     const selfFlow = view?.getComputedStyle ? String(view.getComputedStyle(el).display) : '';
     const needsFullRow = /flex/.test(selfFlow) || /grid/.test(selfFlow);
 
+    if (isDarkBackground(el)) node.host.classList.add('lt-dark');
     if (el.tagName === 'LI' || !normalParent) {
       el.append(node.host);
       if (needsFullRow) {

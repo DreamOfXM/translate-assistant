@@ -145,6 +145,25 @@ test('回复面板：译文出现前不能填入，确认后才写入输入框',
   assert.match(card.querySelector('.lt-status').textContent, /已填入/);
 });
 
+test('整页双语对照：深色背景页面的译文自动切暗色配色', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  const dark = window.document.createElement('div');
+  dark.style.backgroundColor = '#0a1020';   // 深色背景（模拟暗色主题站点）
+  const p = window.document.createElement('p');
+  p.textContent = 'A sentence on a dark themed page worth translating.';
+  dark.append(p);
+  window.document.body.append(dark);
+
+  shadow().querySelector('.lt-bubble').click();
+  await tick();
+
+  const host = p.nextElementSibling;
+  assert.ok(host?.classList.contains('lt-para-host'), '暗背景段落应有译文节点');
+  assert.ok(host.classList.contains('lt-dark'), '深色背景上译文应切换暗色配色');
+  dark.remove();
+});
+
 test('整页双语对照：flex 容器里的段落译文插在元素内部，不挤进相邻格子', async () => {
   reset();
   installedPacks = ['en-zh'];
