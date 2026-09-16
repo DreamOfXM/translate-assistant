@@ -45,7 +45,7 @@ const PARA_STYLES = `
   margin: 8px 0 4px;
   padding: 10px 12px 10px 14px;
   border-radius: 8px;
-  background: rgba(56, 189, 248, .10);
+  background: rgba(56, 189, 248, .13);
   color: #0F172A;
   font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   animation: lt-para-in 200ms ease-out;
@@ -66,36 +66,30 @@ const PARA_STYLES = `
 }
 .lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .lt-para-text.lt-para-error { color: #DC2626; }
-.lt-para-ops { margin-top: 6px; display: flex; gap: 10px; }
+/* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音 */
+.lt-para-ops {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+  opacity: 0;
+  transition: opacity 150ms;
+}
+.lt-wrap:hover .lt-para-ops,
+.lt-wrap:focus-within .lt-para-ops { opacity: 1; }
 .lt-para-ops button {
   border: 0; background: transparent; padding: 2px 6px;
   color: #0284C7; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: inherit;
   transition: background 150ms;
 }
 .lt-para-ops button:hover { background: rgba(56, 189, 248, .15); }
-.lt-bubble {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 2147483647;
-  border: 0;
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
-  color: #fff;
-  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 6px 20px rgba(14, 165, 233, .35);
-  cursor: pointer;
-  transition: transform 150ms, box-shadow 150ms, filter 150ms;
-}
-.lt-bubble:hover { transform: translateY(-1px); filter: brightness(1.05); }
-.lt-bubble:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(14, 165, 233, .3); }
+/* .lt-bubble（右下角悬浮按钮）的样式在 lib/panel-styles.js——它挂在主 shadow root，
+   这里只管段落译文节点自己的样子 */
 @media (prefers-reduced-motion: reduce) {
   .lt-wrap { animation: none; }
-  .lt-bubble { transition: none; }
+  .lt-para-ops { transition: none; }
 }
 @media (prefers-color-scheme: dark) {
-  .lt-wrap { background: rgba(56, 189, 248, .09); color: #E2E8F0; }
+  .lt-wrap { background: rgba(56, 189, 248, .12); color: #E2E8F0; }
   .lt-para-ops button { color: #7DD3FC; }
   .lt-para-ops button:hover { background: rgba(56, 189, 248, .14); }
   .lt-para-text.lt-para-error { color: #F87171; }

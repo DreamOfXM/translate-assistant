@@ -174,9 +174,29 @@ export const PANEL_STYLES = `
 }
 .lt-hover-pill:hover { transform: scale(1.1); filter: brightness(1.05); }
 
+/* 右下角悬浮按钮（整页双语对照）。它挂在主 shadow root 里，样式必须在这里；
+   之前只写在段落节点的 PARA_STYLES 里，bubble 一直是无样式裸按钮。 */
+.lt-bubble {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2147483647;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
+  color: #fff;
+  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 6px 20px rgba(14, 165, 233, .35);
+  cursor: pointer;
+  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+}
+.lt-bubble:hover { transform: translateY(-1px); filter: brightness(1.05); }
+.lt-bubble:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(14, 165, 233, .3); }
+
 @media (prefers-reduced-motion: reduce) {
   .lt-card { animation: none; }
-  .lt-card *, .lt-float, .lt-hover-pill, .lt-button { transition: none !important; }
+  .lt-card *, .lt-float, .lt-hover-pill, .lt-button, .lt-bubble { transition: none !important; }
 }
 
 @media (prefers-color-scheme: dark) {
