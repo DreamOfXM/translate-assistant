@@ -54,7 +54,8 @@ if (existsSync(wasm)) {
   console.log(`   WASM 运行时：${(statSync(wasm).size / 1048576).toFixed(1)} MB`);
 }
 
-const zipPath = join(dist, 'translate-assistant.zip');
+const manifestVersion = manifest.version;
+const zipPath = join(dist, `translate-assistant-v${manifestVersion}.zip`);
 try {
   rmSync(zipPath, { force: true });
 } catch {

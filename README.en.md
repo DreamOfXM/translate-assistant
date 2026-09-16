@@ -49,17 +49,25 @@ The engine is [bergamot-translator](https://github.com/browsermt/bergamot-transl
 
 ## 📦 Install
 
-Requires Chrome 109+ (offscreen documents API).
+### Option 1: download a build (recommended)
+
+1. Grab the latest `translate-assistant-vX.Y.Z.zip` from [Releases](https://github.com/DreamOfXM/translate-assistant/releases)
+2. Unzip it anywhere
+3. Open `chrome://extensions` → enable **Developer mode** → click **Load unpacked** → select the unzipped `translate-assistant` folder
+4. Refresh already-open pages (the content script only injects into newly loaded ones)
+
+> Unpacked extensions require developer mode; the extension contains zero telemetry, and the source is all here to audit.
+
+### Option 2: build from source (developers)
+
+Requires Chrome 109+ (offscreen documents API) and Node.js 18+.
 
 ```bash
 npm install
 npm run build
 ```
 
-1. Open `chrome://extensions`
-2. Enable **Developer mode** (top right)
-3. Click **Load unpacked** and select the **`dist/translate-assistant`** folder
-4. Refresh already-open pages (the content script only injects into newly loaded ones)
+The build lands in `dist/translate-assistant` (load it as above) and also produces a distributable `dist/translate-assistant-v<version>.zip`.
 
 > ⚠️ Load `dist/`, never `extension/`: `content.js` must be bundled by esbuild into a single classic script.
 

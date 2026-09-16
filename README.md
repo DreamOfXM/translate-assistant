@@ -49,17 +49,25 @@
 
 ## 📦 安装
 
-要求 Chrome 109+（用到离屏文档 API）。
+### 方式一：直接下载（推荐）
+
+1. 到 [Releases](https://github.com/DreamOfXM/translate-assistant/releases) 下载最新的 `translate-assistant-vX.Y.Z.zip`
+2. 解压到任意目录
+3. 打开 `chrome://extensions` → 开启右上角「开发者模式」→ 点「加载已解压的扩展程序」→ 选择解压出的 `translate-assistant` 文件夹
+4. 刷新已经打开的网页（content script 只注入新加载的页面）
+
+> 未打包上架商店的扩展需要开发者模式加载；扩展不含任何遥测，介意的话可以审查源码。
+
+### 方式二：从源码构建（开发者）
+
+要求 Chrome 109+（用到离屏文档 API）、Node.js 18+。
 
 ```bash
 npm install
 npm run build
 ```
 
-1. 打开 `chrome://extensions`
-2. 打开右上角「开发者模式」
-3. 点「加载已解压的扩展程序」，选择 **`dist/translate-assistant`** 目录
-4. 刷新已经打开的网页（content script 只注入新加载的页面）
+构建产物在 `dist/translate-assistant`（同上方式加载），同时生成可分发的 `dist/translate-assistant-v版本.zip`。
 
 > ⚠️ 必须加载 `dist/` 而不是 `extension/`：`content.js` 需经 esbuild 打包成单文件经典脚本。
 
