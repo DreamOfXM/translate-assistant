@@ -4,6 +4,8 @@
 
 **在浏览器里本地翻译网页的外语内容 —— 不用 API Key、不上传文本、装好语言包离线也能用**
 
+**简体中文** | [English](README.en.md)
+
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
@@ -11,8 +13,6 @@
 <img src="docs/images/bilingual.gif" alt="整页双语对照演示" width="720">
 
 *打开外文网页，译文自动逐段出现在原文下方 —— 全程本地完成，无需任何配置*
-
-[English](README.en.md) · 简体中文
 
 </div>
 
@@ -78,15 +78,6 @@ npm run build
 3. **写外文回复**：在评论框点「翻译回复」，用中文写草稿 → 生成译文 → 确认填入
 
 界面支持 **中文 / English**，默认跟随浏览器语言，欢迎页与「语言包管理」页均可切换。
-
-## 🧪 质量保障
-
-```bash
-npm test              # 110 个单元测试（语言识别、消息协议、布局适配、输入框填充…）
-npm run build         # 打包到 dist/
-npm run verify:engine # 不开浏览器真跑一次翻译，验证 WASM 引擎与线上模型兼容
-npm run test:e2e      # 真 Chrome 走完四条主路径（popup/选中/悬停/整页/回复）
-```
 
 ## ⚠️ 已知限制
 

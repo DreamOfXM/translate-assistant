@@ -4,6 +4,8 @@
 
 **Translate foreign-language pages locally in your browser — no API keys, no uploads, offline once packs are installed**
 
+[简体中文](README.md) | **English**
+
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
@@ -11,8 +13,6 @@
 <img src="docs/images/bilingual.gif" alt="Bilingual page demo" width="720">
 
 *Open a foreign page and translations appear under each paragraph — fully local, zero configuration*
-
-English · [简体中文](README.md)
 
 </div>
 
@@ -78,15 +78,6 @@ The build lands in `dist/translate-assistant` (load it as above) and also produc
 3. **Reply in foreign languages**: hit "翻译回复" in a comment box, write in your language, generate, confirm, fill in
 
 The UI speaks **中文 / English** — it follows your browser language and can be switched on the welcome page or in the pack manager.
-
-## 🧪 Quality
-
-```bash
-npm test              # 110 unit tests (language detection, protocol, layout, input filling…)
-npm run build         # bundle to dist/
-npm run verify:engine # run one real translation in Node — verifies WASM engine + upstream models
-npm run test:e2e      # real Chrome drives the four main user paths
-```
 
 ## ⚠️ Known limitations
 
