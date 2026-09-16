@@ -16,6 +16,7 @@ import {
   createHoverReader, HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY
 } from './lib/reader.js';
 import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js';
+import { findMainContentRoot } from './lib/content-extract.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
 
@@ -581,11 +582,27 @@ function pageSample() {
   return out.slice(0, limit);
 }
 
-/** 判断整页是什么语言：按中英文字占比，汉字占多数才算中文页（见 languages.js） */
+/** 判断整页是什么语言：按中英文字占比，汉字占多数才算中文页（见 languages.js）。
+ *
+ *  判定范围优先取正文根而不是整页采样：GitHub 的界面全是英文，中文 README 页
+ *  若按 body 采样会被误判成英文页，整页对照就会绕过中文正文、去翻那些零星的
+ *  英文界面词——正是「分不清中英文，见到单词就翻」的观感来源。 */
 function pageLanguage() {
-  const text = pageSample();
-  if (!text.trim()) return null;
-  return detectLanguageByRatio(text);
+  let root = null;
+  try { root = findMainContentRoot(document); } catch { /* 判定失败退回 body 采样 */ }
+  if (root) {
+    const text = String(root.textContent ?? '');
+    if (text.trim()) return detectLanguageByRatio(text);
+  }
+  // 没有正文根时保守判中文：页面里已有可观的中文，自动双语只会翻出
+  // 零星界面词的噪音；真正的外文页面不会带这么多汉字
+  const body = document.body;
+  if (body) {
+    const cjk = (String(body.textContent ?? '').match(/[㐀-䶿一-鿿]/g) ?? []).length;
+    if (cjk >= 800) return 'zh';
+  }
+  const text2 = pageSample();
+  return text2.trim() ? detectLanguageByRatio(text2) : null;
 }
 
 /**
@@ -606,9 +623,17 @@ async function directionReady(source) {
 async function autoStart() {
   const source = pageLanguage();
   if (!source) return;
-  // 中文网页对中文读者没有翻译价值
-  if (source === READ_TARGET_LANGUAGE) return;
-  if (!(await directionReady(source))) return;
+  // 中文网页对中文读者没有翻译价值；把原因说在按钮上，别让用户猜
+  if (source === READ_TARGET_LANGUAGE) {
+    hoverReader.setBubbleNotice({ text: '中文页面 · 无需翻译' });
+    return;
+  }
+  if (!(await directionReady(source))) {
+    // 不静默装死：告诉用户为什么没翻；点击按钮=开始翻译（手动触发允许下载）
+    hoverReader.setBubbleNotice({ text: '缺语言包 · 点击翻译并下载' });
+    return;
+  }
+  hoverReader.setBubbleNotice(null);
   hoverReader.setAuto(true);
 }
 

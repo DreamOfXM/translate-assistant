@@ -183,7 +183,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
-  let appPageSkipped = false;      // 工具型页面跳过了自动翻译（手动点按钮仍可翻）
+  let bubbleNotice = null;         // { text, action } 自动翻译没跑时的原因提示（action: 'install'|null）
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
@@ -361,8 +361,8 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       bubble.textContent = `翻译中 ${done}/${Math.max(discovered, done + queue.length)} · 点击停止`;
       return;
     }
-    if (!done && appPageSkipped) {
-      bubble.textContent = '工具页不自动翻译 · 点击翻正文';
+    if (!done && bubbleNotice) {
+      bubble.textContent = bubbleNotice.text;
       return;
     }
     bubble.textContent = done ? `已译 ${done} 段 · 收起` : BUBBLE_IDLE;
@@ -498,7 +498,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   const startLive = () => {
     if (liveMode) return;
     if (looksLikeAppPage(document)) {
-      appPageSkipped = true;
+      bubbleNotice = { text: '工具页不自动翻译 · 点击翻正文' };
       updateBubble();
       return;
     }
@@ -506,6 +506,13 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     scan();
     watchDom();
     pump();
+  };
+
+  /** 自动翻译没跑（缺语言包/中文页）时，让按钮把原因说出来而不是静默装死。
+   *  action: 'install' 表示点击跳语言包管理页；其余 action 点击仍尝试手动翻。 */
+  const setBubbleNotice = notice => {
+    bubbleNotice = notice;
+    updateBubble();
   };
 
   /** 手动点「双语对照」：整页都翻，不只在视口里的 */
@@ -542,6 +549,8 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
         hideAll();
         return;
       }
+      // 缺语言包的提示：点击=开始翻译（手动触发允许下载语言包，auto 才禁止）
+      bubbleNotice = null;
       runAll();
     };
     getShadow().append(bubble);
@@ -602,6 +611,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
         stop();
         bubble?.remove();
         bubble = null;
+        bubbleNotice = null;   // 按钮都没了，原因提示自然失效
         return;
       }
       ensureBubble();
@@ -616,6 +626,8 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       }
       if (liveMode) stop();
     },
+    /** 自动翻译没有跑时的按钮提示（缺语言包/中文页/工具页） */
+    setBubbleNotice,
     /** 供测试注入事件 */
     _onMouseOver: onMouseOver,
     _hidePill: hidePill,

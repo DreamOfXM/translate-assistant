@@ -186,11 +186,15 @@ function pickSemanticRoot(doc) {
   }
   if (!matches.length) return null;
 
+  // 嵌套时保留更精确的内层：GitHub 的 main 里嵌着 README 的 article，
+  // 认外层的 main 当正文根，表格、时间戳、界面词就全混进「正文」了
+  const refined = matches.filter(match =>
+    !matches.some(other => other.el !== match.el && match.el.contains(other.el)));
   matches.sort((a, b) => b.text - a.text);
   // 博客首页那种一排体量相当的文章卡片：只认最大那个会漏掉其余卡片，
   // 改取它们的公共祖先；公共祖先就是 body 时交给调用方降级
-  const peers = matches
-    .filter(match => match.text >= matches[0].text * PEER_RATIO)
+  const peers = refined
+    .filter(match => match.text >= refined[0].text * PEER_RATIO)
     .map(match => match.el);
   if (peers.length === 1) return peers[0];
   const common = commonAncestor(peers);

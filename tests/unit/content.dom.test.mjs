@@ -45,6 +45,7 @@ let installedPacks = [];   // 自动翻译前会先查语言包，为空则不�
 globalThis.chrome = {
   runtime: {
     onMessage: { addListener: () => {} },
+    openOptionsPage: () => {},
     sendMessage: async message => {
       if (message.type === 'TRANSLATE') {
         translateCalls.push(message);
@@ -89,6 +90,9 @@ const reset = () => {
   translateCalls.length = 0;
   // 恢复悬停翻译默认关闭
   storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: false } }, 'local'));
+  // 重建悬浮按钮，清掉上一个用例遗留的「缺语言包/中文页」提示
+  storageListeners.forEach(listener => listener({ pageBilingual: { newValue: false } }, 'local'));
+  storageListeners.forEach(listener => listener({ pageBilingual: { newValue: true } }, 'local'));
 };
 
 test('聚焦 textarea 会出现「翻译回复」入口', () => {
@@ -463,13 +467,15 @@ test('竞态兜底：收集时是英文、翻译时变成了中文，静默跳�
 
 test('整页双语对照：开启后出现悬浮按钮，点击逐段插入译文', async () => {
   reset();
-  storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
+  installedPacks = ['en-zh'];   // 语言包就绪，手动点击不需要再下载
+  storageListeners.forEach(listener => listener({ autoBilingual: { newValue: false } }, 'local'));
 
   // 前面的用例会把 #para 改写成中文，这里固定回英文
   window.document.getElementById('para').textContent = 'Local translation runs entirely on your device.';
 
   const bubble = shadow().querySelector('.lt-bubble');
   assert.ok(bubble, '开启悬停翻译后应出现「双语对照」悬浮按钮');
+  await tick();   // autoStart 异步查语言包状态，等它清掉上一次的 notice
   assert.equal(bubble.textContent, '双语对照');
 
   bubble.click();
@@ -490,6 +496,7 @@ test('整页双语对照：开启后出现悬浮按钮，点击逐段插入译�
 
 test('整页双语对照：再点收起全部译文，第三次点恢复且不重复翻译', async () => {
   reset();
+  installedPacks = ['en-zh'];
   storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
 
   const para = window.document.getElementById('para');
@@ -512,6 +519,7 @@ test('整页双语对照：再点收起全部译文，第三次点恢复且不�
 
 test('整页双语对照：收段时跳过容器块，只翻叶子段落', async () => {
   reset();
+  installedPacks = ['en-zh'];
   storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
 
   const quote = window.document.createElement('blockquote');

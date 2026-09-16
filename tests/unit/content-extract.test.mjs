@@ -95,6 +95,22 @@ test('正文根是 article 时，它内部的 header 算标题区，footer 仍�
   assert.equal(shouldSkipBlock(title), true, '没有正文根时 header 内的块按框架区域处理');
 });
 
+test('main 里嵌着更精确的 article 时选 article，不把整个 main 当正文根', () => {
+  const document = doc(`
+    <main>
+      <div class="toolbar"><button>Watch</button><button>Star</button></div>
+      <table><tr><td>Name</td><td>Sep 14, 2026</td></tr></table>
+      <article class="markdown-body">
+        <h1>Real article</h1>
+        <p>${prose('First paragraph of the embedded readme article')}</p>
+        <p>${prose('Second paragraph of the embedded readme article')}</p>
+      </article>
+    </main>
+  `);
+  const root = findMainContentRoot(document);
+  assert.ok(root?.matches('article'), '正文根应是 article 而不是包住界面零件的 main');
+});
+
 test('常见 CMS 类名也能当正文根', () => {
   const document = doc(`
     <div id="wrapper">
