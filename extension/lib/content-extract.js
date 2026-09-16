@@ -272,13 +272,41 @@ const MIN_BLOCKS_FOR_APP_CHECK = 8;
 const MAX_LONG_BLOCK_RATIO = 0.15;
 
 /**
+ * 页面里已有可观汉字就保守判中文的下限：真外文页面不会带这么多汉字。
+ */
+export const MIN_CJK_FOR_ZH_PAGE = 800;
+
+/**
+ * 默认不自动整页翻译的站点（hostname 以此结尾即命中）。
+ *
+ * GitHub 这类「应用型站点」的每一页都是界面零件：搜索结果页翻出「先进」
+ * （Advanced 的烂译）、仓库页翻出表格与时间戳，怎么调启发式都有漏网之鱼。
+ * 主流做法（Chrome 的「永不翻译这些网站」、沉浸式翻译的「永不翻译此网站」）
+ * 都是站点级黑名单；这里预置口碑最差的几个，用户手动点「双语对照」仍可翻。
+ */
+export const DEFAULT_NEVER_AUTO_SITES = ['github.com'];
+
+/**
+ * hostname 是否命中「不自动翻译」站点列表（点分后缀匹配，仓库页/搜索页一并覆盖）。
+ * @param {string} hostname 页面 hostname
+ * @param {string[]} [sites] 站点列表，默认内置列表
+ * @returns {boolean}
+ */
+export function isNeverAutoSite(hostname, sites = DEFAULT_NEVER_AUTO_SITES) {
+  if (!hostname) return false;
+  const host = String(hostname).toLowerCase().replace(/\.$/, '');
+  // 只认完全相等或「.站点」后缀：evil-github.com 不能命中 github.com
+  return sites.some(site => host === site || host.endsWith(`.${site}`));
+}
+
+/**
  * 判断这是不是「应用/工具型页面」：满页短标签、时间戳、表格单元，几乎没有
  * 成段的自然语言（GitHub 仓库页、管理后台、搜索结果页）。这类页面整页双语
  * 只会把 Watch→观看、Sep 14, 2026→2026年9月14日 这种界面词逐个插成噪音节点，
  * 默认不该自动开启；用户手动点悬浮按钮仍可翻。
  *
  * 判据是「长块占比」：控件计数在 GitHub 上会失效（footer 链接、td、README 列表
- * 把块总数撑得比按钮数大一个量级），而「有没有成段文字」是文章页和工具页的
+ * 把块总数撑得比按钮大一个量级），而「有没有成段文字」是文章页和工具页的
  * 本质区别，按整页 body 统计、不跟正文根收窄。
  *
  * @param {Document|Element} doc 要分析的文档
@@ -314,10 +342,12 @@ export function findMainContentRoot(doc = globalThis.document) {
 }
 
 /**
- * 判断一个块是否该跳过（不是正文）。
+ * 判断块是否该跳过（不是正文）。
  *
  * 跳过规则：位于 nav/header/footer/aside/form 或对应 ARIA 角色内；自身或近处祖先的
  * class/id 命中广告、侧栏、评论、分享等命名；链接密度过高（导航、链接农场）；文字极短。
+ * 另外尊重 Web 标准：带 translate="no" 或 notranslate 标记的区域是站长明确
+ * 说不翻的（Chrome/沉浸式翻译都遵守），一律跳过。
  *
  * @param {Element} el 候选块
  * @param {Element|null} [contentRoot] 已识别的正文根。传了之后有两处放宽：
@@ -327,6 +357,7 @@ export function findMainContentRoot(doc = globalThis.document) {
  */
 export function shouldSkipBlock(el, contentRoot = null) {
   if (!el || el.nodeType !== 1) return true;
+  if (el.closest?.('[translate="no"], .notranslate')) return true;
   const innerArticle = Boolean(contentRoot) && contentRoot !== el &&
     Boolean(contentRoot.matches?.(ARTICLE_LIKE_SELECTOR)) && contentRoot.contains(el);
   if (isInChromeRegion(el, innerArticle)) return true;

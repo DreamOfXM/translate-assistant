@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage } from '../../extension/lib/content-extract.js';
+import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage, isNeverAutoSite, DEFAULT_NEVER_AUTO_SITES } from '../../extension/lib/content-extract.js';
 
 /** 造一段足够长的英文正文，让容器能越过「文字量太少不算正文根」的门槛 */
 const prose = (seed, sentences = 3) => Array.from(
@@ -259,6 +259,25 @@ test('shouldSkipBlock：表格单元的短数据（日期、文件名）不算�
   assert.equal(shouldSkipBlock(document.getElementById('msg')), true, '短 commit 信息是数据');
   assert.equal(shouldSkipBlock(document.getElementById('date')), true, '日期是数据');
   assert.equal(shouldSkipBlock(document.getElementById('long')), false, '够长的表格单元仍当正文翻');
+});
+
+test('shouldSkipBlock：translate=no / notranslate 标记的区域不翻', () => {
+  const document = doc(`
+    <p translate="no" id="no-translate">${prose('Site owner marked this paragraph as notranslate')}</p>
+    <div class="notranslate"><p id="in-notranslate">${prose('Paragraph inside a notranslate container stays untranslated')}</p></div>
+    <p id="normal">${prose('A regular paragraph without any translation markers')}</p>
+  `);
+  assert.equal(shouldSkipBlock(document.getElementById('no-translate')), true);
+  assert.equal(shouldSkipBlock(document.getElementById('in-notranslate')), true);
+  assert.equal(shouldSkipBlock(document.getElementById('normal')), false);
+});
+
+test('isNeverAutoSite：子域名一并命中黑名单', () => {
+  assert.equal(isNeverAutoSite('github.com'), true);
+  assert.equal(isNeverAutoSite('gist.github.com'), true);
+  assert.equal(isNeverAutoSite('evil-github.com'), false, '仅后缀拼接的仿冒域名不命中');
+  assert.equal(isNeverAutoSite('example.com', ['example.com']), true);
+  assert.equal(isNeverAutoSite('', DEFAULT_NEVER_AUTO_SITES), false);
 });
 
 test('shouldSkipBlock：sr-only 屏幕阅读器元素按杂讯跳过', () => {

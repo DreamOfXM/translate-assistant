@@ -16,7 +16,7 @@ import {
   createHoverReader, HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY
 } from './lib/reader.js';
 import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js';
-import { findMainContentRoot } from './lib/content-extract.js';
+import { findMainContentRoot, isNeverAutoSite, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
 
@@ -599,7 +599,7 @@ function pageLanguage() {
   const body = document.body;
   if (body) {
     const cjk = (String(body.textContent ?? '').match(/[㐀-䶿一-鿿]/g) ?? []).length;
-    if (cjk >= 800) return 'zh';
+    if (cjk >= MIN_CJK_FOR_ZH_PAGE) return 'zh';
   }
   const text2 = pageSample();
   return text2.trim() ? detectLanguageByRatio(text2) : null;
@@ -621,6 +621,13 @@ async function directionReady(source) {
 }
 
 async function autoStart() {
+  // 站点黑名单先行：GitHub 这类应用型站点每一页都是界面零件，
+  // 主流做法（Chrome「永不翻译这些网站」、沉浸式翻译「永不翻译此网站」）
+  // 都是站点级开关；手动点「双语对照」仍然可翻。
+  if (isNeverAutoSite(globalThis.location?.hostname ?? window.location?.hostname)) {
+    hoverReader.setBubbleNotice({ text: '此站点不自动翻译 · 点击翻正文' });
+    return;
+  }
   const source = pageLanguage();
   if (!source) return;
   // 中文网页对中文读者没有翻译价值；把原因说在按钮上，别让用户猜
