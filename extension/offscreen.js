@@ -14,6 +14,7 @@
  */
 
 import { createEngine } from './lib/engine.js';
+import { chromeTranslatorAvailable, chromeTranslatorStatus, chromeTranslate } from './lib/chrome-translator.js';
 import { HOST } from './lib/protocol.js';
 
 /** 重连退避：从 150ms 起指数增长，封顶 3s。
@@ -66,9 +67,22 @@ async function handle(op, payload) {
       const { text, source, target, tabId } = payload ?? {};
       progressTabId = tabId ?? null;
       try {
+        // Chrome 内建引擎（138+）优先：原生实现更快、Google 级质量、模型由浏览器
+        // 管理且已就绪时零成本。只认「模型已就绪」——downloadable 状态意味着要
+        // 触发浏览器级的大模型下载，那必须由用户显式决定，不静默触发。
+        // 任何失败都回落 Bergamot 语言包，用户无感知。
+        if (source !== 'auto' && chromeTranslatorAvailable()) {
+          try {
+            const st = await chromeTranslatorStatus(source, target);
+            if (st.status === 'available') {
+              const translated = await chromeTranslate(text, st.source, st.target);
+              return { text: translated, installed: engine.installed(), engine: 'chrome' };
+            }
+          } catch { /* 回落 Bergamot */ }
+        }
         const translated = await engine.translate({ text, source, target });
         // 顺带回报本次会话加载过的语言包，落盘由 Service Worker 完成
-        return { text: translated, installed: engine.installed() };
+        return { text: translated, installed: engine.installed(), engine: 'bergamot' };
       } finally {
         progressTabId = null;
       }

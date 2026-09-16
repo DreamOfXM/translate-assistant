@@ -241,7 +241,7 @@ async function handle(message, sender) {
         tabId: sender.tab?.id ?? null
       });
       await rememberPacks(result.installed);
-      return { text: result.text, segments: result.segments ?? 1 };
+      return { text: result.text, segments: result.segments ?? 1, engine: result.engine ?? 'bergamot' };
     }
 
     case MESSAGES.GET_CATALOG: {

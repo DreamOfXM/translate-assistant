@@ -17,6 +17,7 @@ import {
 } from './lib/reader.js';
 import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js';
 import { findMainContentRoot, isNeverAutoSite, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
+import { chromeTranslatorAvailable, chromeTranslatorStatus } from './lib/chrome-translator.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
 import { initI18n, t, uiLang } from './lib/i18n.js';
@@ -626,6 +627,21 @@ async function directionReady(source) {
   }
 }
 
+/**
+ * Chrome 内建引擎（138+）支持该方向时，整页对照不需要任何语言包——
+ * 模型由浏览器管理，已就绪即用。只认 available：downloadable 意味着
+ * 要触发浏览器级大模型下载，不能在自动模式里静默发生。
+ */
+async function chromeEngineReady(source, target) {
+  if (!chromeTranslatorAvailable()) return false;
+  try {
+    const st = await chromeTranslatorStatus(source, target);
+    return st.status === 'available';
+  } catch {
+    return false;
+  }
+}
+
 async function autoStart() {
   await i18nReady;
   // 站点黑名单先行：GitHub 这类应用型站点每一页都是界面零件，
@@ -642,7 +658,7 @@ async function autoStart() {
     hoverReader.setBubbleNotice({ text: t('bubble_zh') });
     return;
   }
-  if (!(await directionReady(source))) {
+  if (!(await directionReady(source)) && !(await chromeEngineReady(source, READ_TARGET_LANGUAGE))) {
     // 不静默装死：告诉用户为什么没翻；点击按钮=开始翻译（手动触发允许下载）
     hoverReader.setBubbleNotice({ text: t('bubble_pack') });
     return;
