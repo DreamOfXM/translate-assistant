@@ -42,8 +42,11 @@ const PARA_STYLES = `
 :host { all: initial; }
 .lt-wrap {
   position: relative;
+  /* 短译文（标题、导航项）贴内容宽度，不撑满整行；长段落自然到 100% */
+  width: fit-content;
+  max-width: 100%;
   margin: 8px 0 4px;
-  padding: 10px 12px 10px 14px;
+  padding: 10px 12px 30px 14px;
   border-radius: 8px;
   background: rgba(56, 189, 248, .13);
   color: #0F172A;
@@ -66,9 +69,12 @@ const PARA_STYLES = `
 }
 .lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .lt-para-text.lt-para-error { color: #DC2626; }
-/* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音 */
+/* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
+   绝对定位挂在节点底部预留的空白上，不参与宽度计算（否则会把短节点撑宽） */
 .lt-para-ops {
-  margin-top: 6px;
+  position: absolute;
+  left: 14px;
+  bottom: 7px;
   display: flex;
   gap: 10px;
   opacity: 0;
