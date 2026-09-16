@@ -80,7 +80,11 @@ const reset = () => {
   window.document.querySelectorAll('.lt-para-host').forEach(node => node.remove());
   for (const id of ['comment', 'title', 'editor']) {
     const node = window.document.getElementById(id);
-    if (node) delete node.dataset.ltBound;
+    if (node) {
+      delete node.dataset.ltBound;
+      // 就地译文条按「输入框是否已有草稿」分流，残留文字会污染后面的用例
+      if ('value' in node) node.value = '';
+    }
   }
   translateCalls.length = 0;
   // 恢复悬停翻译默认关闭
@@ -132,6 +136,44 @@ test('回复面板：译文出现前不能填入，确认后才写入输入框',
   assert.equal(comment.value, '译文<这是一段中文草稿>', '译文应写入输入框');
   assert.equal(inputEvents, 1, '必须派发原生 input 事件，否则 React/Vue 感知不到');
   assert.match(card.querySelector('.lt-status').textContent, /已填入/);
+});
+
+test('就地译文条：输入框已有草稿时不再打开完整面板，填入后自动收尾', async () => {
+  reset();
+  const comment = window.document.getElementById('comment');
+  comment.value = '听起来是的';
+  comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  shadow().querySelector('.lt-float').click();
+
+  const card = shadow().querySelector('.lt-card.lt-inline');
+  assert.ok(card, '草稿已存在时应出现就地译文条');
+  assert.equal(card.querySelector('.lt-draft'), null, '不该有草稿编辑区');
+  await tick();
+
+  assert.equal(card.querySelector('.lt-result').textContent, '译文<听起来是的>', '应自动翻译输入框里的草稿');
+
+  const fillButton = card.querySelector('.lt-fill');
+  assert.equal(fillButton.disabled, false, '有译文且输入框有效时允许填入');
+
+  fillButton.click();
+  await tick();
+
+  assert.equal(comment.value, '译文<听起来是的>', '确认后写入输入框');
+  assert.equal(shadow().querySelector('.lt-card'), null, '填入成功后译文条自动关闭');
+  // 清掉填入的译文，避免「输入框已有草稿」泄漏到后面的用例
+  comment.value = '';
+});
+
+test('就地译文条：空输入框仍打开完整面板', async () => {
+  reset();
+  const comment = window.document.getElementById('comment');
+  comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  shadow().querySelector('.lt-float').click();
+
+  const card = shadow().querySelector('.lt-card');
+  assert.ok(card, '空输入框应打开面板');
+  assert.ok(card.querySelector('.lt-draft'), '面板带草稿编辑区');
+  assert.equal(shadow().querySelector('.lt-card.lt-inline'), null, '不应出现就地译文条');
 });
 
 test('回复面板：只填入译文，不触发任何提交', async () => {

@@ -353,6 +353,104 @@ function openReplyPanel({ input = null, text = '' } = {}) {
   draftArea.focus();
 }
 
+/**
+ * 就地译文条：输入框里已经有草稿时，点「翻译回复」不再打开完整面板，
+ * 直接在输入框下方出一条紧凑译文（自动翻译 → 填入 / 重译 / 复制）。
+ * 填入成功即收尾；「更多选项」切换到完整面板继续编辑草稿。
+ */
+function openInlineTranslation({ input }) {
+  mount();
+  closeCard();
+  boundInput = input;
+  const draft = readInput(input).trim();
+
+  card = element('section', 'lt-card lt-inline');
+  card.innerHTML = `
+    <div class="lt-inline-head">
+      <span class="lt-inline-lang"></span>
+      <button class="lt-close" type="button" title="关闭">×</button>
+    </div>
+    <p class="lt-text lt-result placeholder">正在本地翻译…</p>
+    <div class="lt-bar" hidden><i></i></div>
+    <div class="lt-actions">
+      <button class="lt-button primary-fill lt-fill" type="button" disabled>填入输入框</button>
+      <button class="lt-button ghost lt-retry" type="button" disabled>重译</button>
+      <button class="lt-button ghost lt-copy" type="button" disabled>复制</button>
+      <button class="lt-inline-more" type="button">完整面板</button>
+    </div>
+    <p class="lt-status"></p>
+  `;
+  shadow.append(card);
+  const rect = input.getBoundingClientRect();
+  place(card, rect.left, (rect.bottom || rect.top) + 8, Math.max(300, Math.min(rect.width, 400)));
+
+  const fillButton = card.querySelector('.lt-fill');
+  const retryButton = card.querySelector('.lt-retry');
+  const copyButton = card.querySelector('.lt-copy');
+  const result = card.querySelector('.lt-result');
+  const bar = card.querySelector('.lt-bar');
+  const barFill = bar.querySelector('i');
+  const message = card.querySelector('.lt-status');
+  const langLabel = card.querySelector('.lt-inline-lang');
+
+  card.querySelector('.lt-close').onclick = closeCard;
+  card.querySelector('.lt-inline-more').onclick = () => openReplyPanel({ input, text: draft });
+
+  let translation = '';
+  const detected = detectLanguage(draft);
+  const target = suggestTarget(detected, DEFAULT_TARGET_LANGUAGE);
+  langLabel.textContent = `${languageName(detected)} → ${languageName(target)}`;
+
+  const showProgress = progress => {
+    bar.hidden = false;
+    barFill.style.width = `${Math.max(0, Math.min(100, progress.percent ?? 0))}%`;
+    if (progress.label) status(message, progress.label);
+  };
+
+  const run = async () => {
+    fillButton.disabled = retryButton.disabled = copyButton.disabled = true;
+    bar.hidden = false;
+    barFill.style.width = '0%';
+    result.textContent = RESULT_PLACEHOLDER;
+    result.classList.add('placeholder');
+    status(message, '正在本地翻译…');
+    try {
+      const outcome = await translate({ text: draft, source: detected, target, onProgress: showProgress });
+      translation = outcome.text;
+      showResult({ result, label: null, copyButton }, translation, null);
+      status(message, input ? '确认后点「填入输入框」。' : '可复制译文使用。', 'ok');
+    } catch (error) {
+      status(message, error.message, 'error');
+    } finally {
+      retryButton.disabled = copyButton.disabled = false;
+      fillButton.disabled = !(translation && boundInput && isInputAlive(boundInput));
+      bar.hidden = true;
+    }
+  };
+
+  fillButton.onclick = () => {
+    if (!translation) return;
+    if (!boundInput || !isInputAlive(boundInput)) {
+      status(message, '原来的输入框已失效，请重新点击输入框上的「翻译回复」。', 'error');
+      fillButton.disabled = true;
+      return;
+    }
+    if (writeInput(boundInput, translation)) {
+      closeCard();
+    } else {
+      status(message, '这个编辑器不接受自动填入，请复制译文后手动粘贴。', 'error');
+    }
+  };
+
+  retryButton.onclick = run;
+  copyButton.onclick = async () => {
+    const ok = await copyText(translation);
+    status(message, ok ? '译文已复制。' : '复制失败，请手动选择译文复制。', ok ? 'ok' : 'error');
+  };
+
+  run();
+}
+
 /* ---------------------------------- 页面交互 --------------------------------- */
 
 document.addEventListener('focusin', event => {
@@ -385,7 +483,12 @@ function attachInputButton(inputNode) {
     delete inputNode.dataset.ltBound;
   };
 
-  button.onclick = () => openReplyPanel({ input: inputNode });
+  button.onclick = () => {
+    // 输入框里已经有草稿：就地出译文条，不打开完整面板
+    const existing = inputNode && isInputAlive(inputNode) ? readInput(inputNode).trim() : '';
+    if (existing) openInlineTranslation({ input: inputNode });
+    else openReplyPanel({ input: inputNode });
+  };
   inputNode.addEventListener('blur', () => setTimeout(() => {
     if (!card) detach();
   }, 300));

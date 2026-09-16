@@ -140,6 +140,26 @@ export const PANEL_STYLES = `
 .lt-status.error { color: #DC2626; }
 .lt-status.ok { color: #059669; }
 
+/* 就地译文条：输入框已有草稿时的紧凑形态，替代完整面板 */
+.lt-card.lt-inline { width: auto; max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; }
+.lt-inline-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.lt-inline-lang { font-size: 12px; font-weight: 700; color: #0284C7; letter-spacing: .3px; }
+.lt-card.lt-inline .lt-result { margin: 2px 0 0; font-size: 14px; }
+.lt-card.lt-inline .lt-actions { margin-top: 10px; align-items: center; }
+.lt-card.lt-inline .lt-bar { margin-top: 8px; }
+.lt-card.lt-inline .lt-status { margin: 8px 0 0; }
+.lt-inline-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #0284C7;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+}
+.lt-inline-more:hover { text-decoration: underline; }
+
 .lt-float {
   position: fixed;
   z-index: 2147483647;
@@ -221,5 +241,6 @@ export const PANEL_STYLES = `
   .lt-button.ghost:hover:not(:disabled) { background: #334155; }
   .lt-status.error { color: #F87171; }
   .lt-status.ok { color: #34D399; }
+  .lt-inline-lang, .lt-inline-more { color: #7DD3FC; }
 }
 `;
