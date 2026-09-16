@@ -277,9 +277,32 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     const node = buildResult();
     results.set(el, node);
     batchNodes.push(node);
-    // 列表项把译文放进项内，避免破坏列表结构；其余元素插到后面
-    if (el.tagName === 'LI') el.append(node.host);
-    else el.after(node.host);
+    // 插入位置：普通文档流的父容器（block 系）才外插 after，保持「原文在上、
+    // 译文在下」；其余情况（列表项、flex/grid/contents/table 系容器）一律把
+    // 译文放进元素内部尾部——外插的兄弟节点会被布局引擎挪进相邻格子
+    // （日报类 grid/flex 页面的译文错位实测）。
+    const view = el.ownerDocument?.defaultView;
+    const parentFlow = el.parentElement && view?.getComputedStyle
+      ? String(view.getComputedStyle(el.parentElement).display) : '';
+    const normalParent = /^(block|flow-root|list-item|inline-block)/.test(parentFlow);
+    // 元素自身是 flex/grid 时，内部插入的 host 会成为排到行尾的 item，
+    // 让它独占一行（flex 换行 + 占满，grid 跨全部列）
+    const selfFlow = view?.getComputedStyle ? String(view.getComputedStyle(el).display) : '';
+    const needsFullRow = /flex/.test(selfFlow) || /grid/.test(selfFlow);
+
+    if (el.tagName === 'LI' || !normalParent) {
+      el.append(node.host);
+      if (needsFullRow) {
+        if (/flex/.test(selfFlow)) {
+          el.style.flexWrap = 'wrap';
+          node.host.style.width = '100%';
+        } else {
+          node.host.style.gridColumn = '1 / -1';
+        }
+      }
+    } else {
+      el.after(node.host);
+    }
 
     try {
       const translated = await translateParagraph(text);

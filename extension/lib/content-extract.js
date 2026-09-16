@@ -156,6 +156,18 @@ function hasChromeNaming(el, contentRoot) {
   return false;
 }
 
+/** 句读标点：出现任意一个说明这是在「说话」，哪怕很短也值得翻 */
+const SENTENCE_PUNCT = /[.!?。！？，,;；:：(']/;
+
+/** 超短的「标题行」块：专名、数字、标签串（Chuluu/mural ★23 · GitHub、
+ *  PeekPaste），没有可读句子；机器翻译只会产出「丘卢/壁画」「固定装载」
+ *  级别的噪音。非标题元素按此跳过。 */
+function isTrivialTitle(el) {
+  if (HEADING_TAGS.has(el.tagName)) return false;
+  const text = textOf(el);
+  return text.length <= 40 && !SENTENCE_PUNCT.test(text);
+}
+
 /** 极短块没有翻译价值；标题本来就短，放过 */
 function isTooShort(el) {
   if (HEADING_TAGS.has(el.tagName)) return false;
@@ -361,6 +373,7 @@ export function shouldSkipBlock(el, contentRoot = null) {
   const innerArticle = Boolean(contentRoot) && contentRoot !== el &&
     Boolean(contentRoot.matches?.(ARTICLE_LIKE_SELECTOR)) && contentRoot.contains(el);
   if (isInChromeRegion(el, innerArticle)) return true;
+  if (isTrivialTitle(el)) return true;
   if (hasChromeNaming(el, contentRoot)) return true;
   if (linkDensity(el) > MAX_LINK_DENSITY) return true;
   return isTooShort(el);

@@ -142,6 +142,42 @@ test('回复面板：译文出现前不能填入，确认后才写入输入框',
   assert.match(card.querySelector('.lt-status').textContent, /已填入/);
 });
 
+test('整页双语对照：flex 容器里的段落译文插在元素内部，不挤进相邻格子', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  const box = window.document.createElement('div');
+  box.style.display = 'flex';
+  const p = window.document.createElement('p');
+  p.textContent = 'Flexible paragraph inside a grid card layout.';
+  box.append(p);
+  window.document.body.append(box);
+
+  shadow().querySelector('.lt-bubble').click();
+  await tick();
+
+  const host = p.querySelector(':scope > .lt-para-host');
+  assert.ok(host, 'flex 容器内的段落译文应插入元素内部尾部');
+  assert.equal(p.nextElementSibling?.classList.contains('lt-para-host') ?? false, false, '不应插成兄弟节点被布局挪进相邻格子');
+  box.remove();
+});
+
+test('整页双语对照：table-row 容器里的段落同样内部插入', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  const row = window.document.createElement('div');
+  row.style.display = 'table-row';
+  const p = window.document.createElement('p');
+  p.textContent = 'Show HN: a long enough sentence inside a table row layout.';
+  row.append(p);
+  window.document.body.append(row);
+
+  shadow().querySelector('.lt-bubble').click();
+  await tick();
+
+  assert.ok(p.querySelector(':scope > .lt-para-host'), 'table-row 容器内应内部插入，避免被表格布局挪位');
+  row.remove();
+});
+
 test('就地译文条：输入框已有草稿时不再打开完整面板，填入后自动收尾', async () => {
   reset();
   const comment = window.document.getElementById('comment');
