@@ -174,6 +174,20 @@ test('保守降级：正文太短时不硬认一个容器当正文根', () => {
   assert.equal(findMainContentRoot(document), null, '文字量不够时应降级，交给调用方翻所有合格块');
 });
 
+test('保守降级：正文散落在多个体量相当的容器里时不挑最大那个', () => {
+  // 每个长段各包一个卡片容器（e2e 测试页就是这种结构）：认最大单个容器会漏掉其余正文块
+  const document = doc(`
+    <h1>Sample page</h1>
+    <div class="case"><p>${prose('First standalone paragraph living in its own card')}</p></div>
+    <div class="case"><p>${prose('Second standalone paragraph living in its own card')}</p></div>
+    <div class="case"><p>${prose('Third standalone paragraph living in its own card, a bit longer, with more clauses, to become the strongest single candidate')}</p></div>
+  `);
+  assert.equal(findMainContentRoot(document), null, '单一容器覆盖不了页面段落分的大头时应降级为翻所有合格块');
+  for (const p of document.querySelectorAll('.case p')) {
+    assert.equal(shouldSkipBlock(p), false, '散落在卡片里的段落必须当正文翻');
+  }
+});
+
 test('保守降级：整页被一个 form 包住时不把 form 当表单控件', () => {
   const document = doc(`
     <form id="aspnetForm">

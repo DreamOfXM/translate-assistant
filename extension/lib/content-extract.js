@@ -58,6 +58,13 @@ const MIN_ROOT_TEXT = 140;
 /** 候选容器至少要拿到的段落分，滤掉只包着一两个短段落的包装层 */
 const MIN_PARAGRAPH_SCORE = 6;
 
+/**
+ * 最佳容器的段落分占页面段落总分的最低比例。正文散落在多个体量相当的容器里时
+ * （每段各包一个卡片的首页、每条例子各包一个容器的测试页），挑最大单个容器必然
+ * 漏掉其余正文块——低于这个比例说明「认不出单一正文根」，降级为翻所有合格块。
+ */
+const MIN_SCORE_COVERAGE = 0.6;
+
 /** 链接密度超过这个值的块是导航或链接农场，不是正文 */
 const MAX_LINK_DENSITY = 0.5;
 
@@ -187,9 +194,11 @@ function pickSemanticRoot(doc) {
 /**
  * Readability-lite 打分：把每个段落类元素的分数按 1、1/2、1/3 累加到父、祖父、曾祖父上，
  * 再按链接密度打折、按 class/id 加减分。body/html 不参与——它们当正文根等于没识别。
+ * total 是所有段落贡献的原始总分（父子间不重叠），供覆盖度检查用。
  */
 function accumulateScores(doc) {
   const scores = new Map();
+  let total = 0;
   const add = (el, delta) => {
     if (!el || el.nodeType !== 1 || isDocumentLevel(el)) return;
     scores.set(el, (scores.get(el) ?? 0) + delta);
@@ -203,8 +212,9 @@ function accumulateScores(doc) {
     add(block.parentElement, weight);
     add(block.parentElement?.parentElement, weight / 2);
     add(block.parentElement?.parentElement?.parentElement, weight / 3);
+    total += weight;
   }
-  return scores;
+  return { scores, total };
 }
 
 function namingBonus(el) {
@@ -217,7 +227,8 @@ function namingBonus(el) {
 
 /** 没有语义容器时的兜底：挑打分最高、且确实装了足够正文的容器 */
 function pickScoredRoot(doc) {
-  const ranked = [...accumulateScores(doc).entries()]
+  const { scores, total } = accumulateScores(doc);
+  const ranked = [...scores.entries()]
     .filter(([, score]) => score >= MIN_PARAGRAPH_SCORE)
     .sort((a, b) => b[1] - a[1])
     .slice(0, TOP_CANDIDATES);
@@ -227,13 +238,14 @@ function pickScoredRoot(doc) {
     if (isInChromeRegion(el)) continue;
     const density = linkDensity(el);
     if (density > MAX_LINK_DENSITY) continue;
-    if (!best || score * (1 - density) + namingBonus(el) > best.score) {
-      best = { el, score: score * (1 - density) + namingBonus(el) };
-    }
+    const adjusted = score * (1 - density) + namingBonus(el);
+    if (!best || adjusted > best.score) best = { el, score: adjusted, raw: score };
   }
   if (!best) return null;
   // 文字量太少的容器多半是摘要卡片或包装层，认它当正文根会漏掉真正的正文
   if (paragraphTextLength(best.el) < MIN_ROOT_TEXT) return null;
+  // 最佳容器只盖住页面段落分的少数：正文散落在多个容器里，认单个容器会漏掉其余正文块
+  if (total > 0 && best.raw / total < MIN_SCORE_COVERAGE) return null;
   return best.el;
 }
 
