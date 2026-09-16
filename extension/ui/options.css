@@ -29,6 +29,18 @@ h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: .3px; }
 h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
 .hint { margin: 0 0 14px; font-size: 13px; color: var(--text-2); }
 
+/* ── 界面语言 ─────────────────────────────── */
+.lang-row { display: flex; align-items: center; gap: 10px; margin: 20px 0 0; font-size: 13px; }
+.lang-row label { font-weight: 600; color: var(--text-2); }
+.lang-row select {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: 13px inherit;
+}
+
 /* ── 汇总行 ───────────────────────────────── */
 .totals { display: flex; align-items: center; gap: 12px; margin: 20px 0 8px;
           font-size: 13px; font-weight: 600; color: var(--text-2); }

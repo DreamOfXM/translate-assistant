@@ -24,31 +24,37 @@
                 text-anchor="middle" dominant-baseline="central">译</text>
         </svg>
         <div>
-          <h1>翻译助手</h1>
-          <p class="lead">整个翻译在你的浏览器里完成——不需要 API Key，不上传任何文本，语言包装好后断网也能用。</p>
+          <h1 data-i18n="app_name">翻译助手</h1>
+          <p class="lead"><span data-i18n="welcome_lead">整个翻译在你的浏览器里完成——不需要 API Key，不上传任何文本，语言包装好后断网也能用。</span></p>
         </div>
       </header>
+
+      <div class="lang-pick">
+        <span class="lang-pick-label" data-i18n="ui_language">界面语言</span>
+        <button class="lang-btn" type="button" data-lang="zh">中文</button>
+        <button class="lang-btn" type="button" data-lang="en">English</button>
+      </div>
 
       <section class="steps">
         <div class="step">
           <span class="step-num">1</span>
           <div class="step-text">
-            <strong>安装语言包</strong>
-            <small>第一次点「去安装」下载英→中语言包（约 40 MB），之后全部离线。</small>
+            <strong data-i18n="step1_t">安装语言包</strong>
+            <small data-i18n="step1_s">第一次点「去安装」下载英→中语言包（约 40 MB），之后全部离线。</small>
           </div>
         </div>
         <div class="step">
           <span class="step-num">2</span>
           <div class="step-text">
-            <strong>打开外文网页</strong>
-            <small>整页双语对照默认开启：译文自动逐段插在原文下面，不用点任何按钮。</small>
+            <strong data-i18n="step2_t">打开外文网页</strong>
+            <small data-i18n="step2_s">整页双语对照默认开启：译文自动逐段插在原文下面，不用点任何按钮。</small>
           </div>
         </div>
         <div class="step">
           <span class="step-num">3</span>
           <div class="step-text">
-            <strong>选中即译，中文写回复</strong>
-            <small>选中外文点「翻译选中」出结果卡片；在评论框点「翻译回复」，用中文写草稿，确认后才填入。</small>
+            <strong data-i18n="step3_t">选中即译，中文写回复</strong>
+            <small data-i18n="step3_s">选中外文点「翻译选中」出结果卡片；在评论框点「翻译回复」，用中文写草稿，确认后才填入。</small>
           </div>
         </div>
       </section>
@@ -58,12 +64,12 @@
           <path d="M12 3l7 3v5c0 4.4-3 8.4-7 9.5C8 19.4 5 15.4 5 11V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
           <path d="M9 11.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        隐私承诺：网页文本、草稿、译文全部留在你的设备上，网络请求只有下载语言包本身。
+        <span data-i18n="privacy">隐私承诺：网页文本、草稿、译文全部留在你的设备上，网络请求只有下载语言包本身。</span>
       </p>
 
       <div class="cta">
-        <button id="install-pack" type="button">安装语言包</button>
-        <button id="close" class="ghost" type="button">开始使用</button>
+        <button id="install-pack" type="button" data-i18n="cta_install">安装语言包</button>
+        <button id="close" class="ghost" type="button" data-i18n="cta_start">开始使用</button>
       </div>
     </main>
     <script type="module" src="welcome.js"></script>

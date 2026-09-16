@@ -19,6 +19,22 @@ export const LANGUAGE_NAMES = {
   vi: '越南语', zh: '中文（简体）', zh_hant: '中文（繁体）'
 };
 
+/** @type {Record<string, string>} 语言代码 → 英文名称（与 LANGUAGE_NAMES 一一对应） */
+export const LANGUAGE_NAMES_EN = {
+  af: 'Afrikaans', ar: 'Arabic', az: 'Azerbaijani', be: 'Belarusian', bg: 'Bulgarian',
+  bn: 'Bengali', bs: 'Bosnian', ca: 'Catalan', cs: 'Czech', da: 'Danish',
+  de: 'German', el: 'Greek', en: 'English', es: 'Spanish', et: 'Estonian', eu: 'Basque',
+  fa: 'Persian', fi: 'Finnish', fr: 'French', gl: 'Galician', gu: 'Gujarati',
+  hbs: 'Serbo-Croatian', he: 'Hebrew', hi: 'Hindi', hr: 'Croatian', hu: 'Hungarian',
+  id: 'Indonesian', is: 'Icelandic', it: 'Italian', ja: 'Japanese', kn: 'Kannada', ko: 'Korean',
+  lt: 'Lithuanian', lv: 'Latvian', ml: 'Malayalam', mr: 'Marathi', ms: 'Malay',
+  nb: 'Norwegian Bokmål', nl: 'Dutch', nn: 'Norwegian Nynorsk', no: 'Norwegian', pl: 'Polish',
+  pt: 'Portuguese', ro: 'Romanian', ru: 'Russian', sk: 'Slovak', sl: 'Slovenian',
+  sq: 'Albanian', sr: 'Serbian', sv: 'Swedish', ta: 'Tamil', te: 'Telugu',
+  th: 'Thai', tr: 'Turkish', ug: 'Uyghur', uk: 'Ukrainian', ur: 'Urdu',
+  vi: 'Vietnamese', zh: 'Chinese (Simplified)', zh_hant: 'Chinese (Traditional)'
+};
+
 /** 默认在语言包管理页面置顶展示的常用方向 */
 export const RECOMMENDED_PAIRS = [
   ['en', 'zh'], ['zh', 'en'], ['ja', 'zh'], ['zh', 'ja'], ['ko', 'zh'], ['zh', 'ko'],
@@ -53,7 +69,9 @@ export function orderedLanguageCodes() {
   return [...COMMON_LANGUAGE_CODES.filter(isKnownLanguage), ...rest];
 }
 
-export function languageName(code) {
+/** 语言显示名：lang='en' 返回英文名，默认中文名（英文表缺失时回落代码） */
+export function languageName(code, lang = 'zh') {
+  if (lang === 'en') return LANGUAGE_NAMES_EN[code] ?? code;
   return LANGUAGE_NAMES[code] ?? code;
 }
 

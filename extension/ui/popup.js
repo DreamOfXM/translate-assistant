@@ -1,4 +1,5 @@
 import { languageName, DEFAULT_TARGET_LANGUAGE } from '../lib/languages.js';
+import { initI18n, applyI18n, t, uiLang } from '../lib/i18n.js';
 import { languageBarMarkup, bindLanguageBar } from '../lib/langbar.js';
 import { translateInSegments } from '../lib/text.js';
 import { HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY } from '../lib/reader.js';
@@ -17,8 +18,9 @@ const outputLabel = $('output-label');
 const result = $('result');
 const packsLine = $('packs');
 
-const PLACEHOLDER = '译文会出现在这里。';
 let resultText = '';
+
+const ready = initI18n().then(() => { applyI18n(document); });
 
 langbarRoot.innerHTML = languageBarMarkup({ to: DEFAULT_TARGET_LANGUAGE });
 const langbar = bindLanguageBar(langbarRoot, {
@@ -27,8 +29,8 @@ const langbar = bindLanguageBar(langbarRoot, {
       // 交换语言时把译文挪回原文框，方便反向翻译
       sourceArea.value = resultText;
       langbar.refresh(sourceArea.value);
-      showResult('', '译文');
-      setStatus('已交换语言，可把译文改回原文再翻一次。');
+      showResult('', t('output_label'));
+      setStatus(t('status_swapped'));
       return;
     }
     if (resultText) run();
@@ -49,9 +51,9 @@ function showProgress(progress) {
 
 function showResult(text, label) {
   resultText = text ?? '';
-  result.textContent = resultText || PLACEHOLDER;
+  result.textContent = resultText || t('output_placeholder');
   result.className = resultText ? 'text' : 'text placeholder';
-  outputLabel.textContent = label ?? '译文';
+  outputLabel.textContent = label ?? t('output_label');
   copyButton.disabled = !resultText;
 }
 
@@ -63,14 +65,14 @@ sourceArea.addEventListener('keydown', event => {
 async function run() {
   const text = sourceArea.value;
   if (!text.trim()) {
-    setStatus('先把要翻译的内容粘进来。', 'error');
+    setStatus(t('status_empty'), 'error');
     sourceArea.focus();
     return;
   }
 
   const { source, target, same } = langbar.resolve(text);
   if (same) {
-    setStatus(`识别出的源语言和目标语言都是${languageName(target)}，请换一个目标语言。`, 'error');
+    setStatus(t('status_same_lang', { name: languageName(target, uiLang()) }), 'error');
     return;
   }
 
@@ -78,7 +80,7 @@ async function run() {
   runButton.classList.add('loading');
   bar.hidden = false;
   barFill.style.width = '0%';
-  setStatus('正在本地翻译…');
+  setStatus(t('status_translating'));
 
   try {
     const outcome = await translateInSegments(
@@ -92,8 +94,8 @@ async function run() {
       }),
       { onProgress: showProgress }
     );
-    showResult(outcome.text, `译文 · ${languageName(target)}`);
-    setStatus(outcome.segments > 1 ? `已分 ${outcome.segments} 段翻译完成。` : '翻译完成。', 'ok');
+    showResult(outcome.text, t('output_label_named', { name: languageName(target, uiLang()) }));
+    setStatus(outcome.segments > 1 ? t('status_done_segments', { n: outcome.segments }) : t('status_done'), 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {
@@ -105,21 +107,21 @@ async function run() {
 
 runButton.onclick = run;
 
-const COPY_LABEL = '复制';
+const COPY_LABEL = () => t('copy');
 let copyTimer = 0;
 copyButton.onclick = async () => {
   try {
     await navigator.clipboard.writeText(resultText);
-    setStatus('译文已复制。', 'ok');
-    copyButton.textContent = '已复制 ✓';
+    setStatus(t('status_copied'), 'ok');
+    copyButton.textContent = t('copied');
     copyButton.classList.add('copied');
     clearTimeout(copyTimer);
     copyTimer = setTimeout(() => {
-      copyButton.textContent = COPY_LABEL;
+      copyButton.textContent = COPY_LABEL();
       copyButton.classList.remove('copied');
     }, 2000);
   } catch {
-    setStatus('复制失败，请手动选择译文复制。', 'error');
+    setStatus(t('status_copy_failed'), 'error');
   }
 };
 
@@ -160,13 +162,15 @@ $('onboard-go').onclick = () => chrome.runtime.openOptionsPage();
 chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS })
   .then(response => {
     const count = response?.installed?.length ?? 0;
-    packsLine.textContent = count ? `已安装 ${count} 个语言包` : '尚未安装语言包';
+    packsLine.textContent = count ? t('packs_count', { n: count }) : t('packs_none');
     // 一个语言包都没装时，把「去安装」引导卡顶在最上面
     onboard.hidden = count > 0;
   })
   .catch(() => {
-    packsLine.textContent = '语言包状态不可用';
+    packsLine.textContent = t('packs_error');
   });
 
-showResult('', '译文');
-sourceArea.focus();
+ready.then(() => {
+  showResult('', t('output_label'));
+  sourceArea.focus();
+});

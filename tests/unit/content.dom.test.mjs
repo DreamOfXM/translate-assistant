@@ -59,7 +59,7 @@ globalThis.chrome = {
   },
   storage: {
     local: {
-      get: async () => ({ hoverTranslate: hoverSetting }),
+      get: async () => ({ hoverTranslate: hoverSetting, uiLang: 'zh' }),
       set: async () => {}
     },
     onChanged: { addListener: listener => storageListeners.push(listener) }
@@ -95,20 +95,22 @@ const reset = () => {
   storageListeners.forEach(listener => listener({ pageBilingual: { newValue: true } }, 'local'));
 };
 
-test('聚焦 textarea 会出现「翻译回复」入口', () => {
+test('聚焦 textarea 会出现「翻译回复」入口', async () => {
   reset();
   const comment = window.document.getElementById('comment');
   comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
 
   const button = shadow().querySelector('.lt-float');
   assert.ok(button, '应出现入口按钮');
   assert.equal(button.textContent, '翻译回复');
 });
 
-test('密码框不会出现入口按钮', () => {
+test('密码框不会出现入口按钮', async () => {
   reset();
   const secret = window.document.getElementById('secret');
   secret.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   assert.equal(shadow().querySelector('.lt-float'), null, '密码框不应绑定翻译入口');
 });
 
@@ -116,6 +118,7 @@ test('回复面板：译文出现前不能填入，确认后才写入输入框',
   reset();
   const comment = window.document.getElementById('comment');
   comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -183,6 +186,7 @@ test('就地译文条：输入框已有草稿时不再打开完整面板，填�
   const comment = window.document.getElementById('comment');
   comment.value = '听起来是的';
   comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card.lt-inline');
@@ -208,6 +212,7 @@ test('就地译文条：空输入框仍打开完整面板', async () => {
   reset();
   const comment = window.document.getElementById('comment');
   comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -223,6 +228,7 @@ test('回复面板：只填入译文，不触发任何提交', async () => {
 
   const title = window.document.getElementById('title');
   title.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -249,6 +255,7 @@ test('选中文本翻译：结果卡片展示译文，且不动任何输入框',
   selection.addRange(range);
 
   paragraph.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+  await tick();   // mouseup 处理器异步等 i18n 就绪
 
   const button = shadow().querySelector('.lt-selection');
   assert.ok(button, '选区旁应出现「翻译选中」按钮');
@@ -283,6 +290,7 @@ test('选中文本翻译：日语原文的目标语言仍是中文', async () =>
   selection.addRange(range);
 
   paragraph.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+  await tick();   // mouseup 处理器异步等 i18n 就绪
   shadow().querySelector('.lt-selection').click();
   await tick();
 
@@ -295,6 +303,7 @@ test('回复面板：中文草稿默认译成英语，不会「自己译自己�
   reset();
   window.document.getElementById('comment')
     .dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -313,6 +322,7 @@ test('交换语言：从「自动检测 → 中文」翻成「中文 → 英语�
   reset();
   window.document.getElementById('comment')
     .dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -335,6 +345,7 @@ test('长文本自动分段请求，不静默截断', async () => {
   selection.addRange(range);
 
   paragraph.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+  await tick();   // mouseup 处理器异步等 i18n 就绪
   shadow().querySelector('.lt-selection').click();
   await tick();
 
@@ -351,6 +362,7 @@ test('翻译失败时展示错误并保留草稿', async () => {
   try {
     const comment = window.document.getElementById('comment');
     comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
     shadow().querySelector('.lt-float').click();
 
     const card = shadow().querySelector('.lt-card');
@@ -372,6 +384,7 @@ test('输入框被页面移除后，填入按钮失效并给出提示', async ()
   // jsdom 不实现 contenteditable 的 isContentEditable 属性，这里手动补上
   Object.defineProperty(editor, 'isContentEditable', { value: true, configurable: true });
   editor.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
 
   const card = shadow().querySelector('.lt-card');
@@ -388,10 +401,11 @@ test('输入框被页面移除后，填入按钮失效并给出提示', async ()
   assert.equal(card.querySelector('.lt-fill').disabled, true);
 });
 
-test('Esc 关闭面板', () => {
+test('Esc 关闭面板', async () => {
   reset();
   const comment = window.document.getElementById('comment');
   comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();   // focusin 处理器现在异步等 i18n 就绪
   shadow().querySelector('.lt-float').click();
   assert.ok(shadow().querySelector('.lt-card'));
 
@@ -399,7 +413,7 @@ test('Esc 关闭面板', () => {
   assert.equal(shadow().querySelector('.lt-card'), null);
 });
 
-test('悬停翻译默认关闭：鼠标停在段落上不出按钮', () => {
+test('悬停翻译默认关闭：鼠标停在段落上不出按钮', async () => {
   reset();
   window.document.getElementById('para')
     .dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
@@ -453,7 +467,7 @@ test('悬停翻译：再点一次「译」收起译文，不重复翻译', async
   assert.equal(para.nextElementSibling.hidden, true, '应切换为收起状态');
 });
 
-test('悬停翻译：中文段落不出按钮，输入框不出按钮', () => {
+test('悬停翻译：中文段落不出按钮，输入框不出按钮', async () => {
   reset();
   storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
 

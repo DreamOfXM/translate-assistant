@@ -1,4 +1,5 @@
 import { languageName, COMMON_LANGUAGE_CODES, directionKey } from '../lib/languages.js';
+import { initI18n, applyI18n, t, uiLang, setUiLang } from '../lib/i18n.js';
 import { planPacks, missingPacks, formatBytes, EVENTS, MESSAGES } from '../lib/protocol.js';
 
 const $ = id => document.getElementById(id);
@@ -65,9 +66,9 @@ function row({ name, meta, metaKind = '', actions = [] }) {
   return node;
 }
 
-function packLabel(pack) {
+function packLabel(pack, lang = uiLang()) {
   const [from, to] = pack.split('-');
-  return `${languageName(from)}→${languageName(to)}`;
+  return `${languageName(from, lang)}→${languageName(to, lang)}`;
 }
 
 function estimateBytes(packs) {
@@ -120,6 +121,7 @@ async function removePack(direction) {
 }
 
 function renderCombos() {
+  const lang = uiLang();
   const available = catalog.map(item => item.key);
   const others = COMMON_LANGUAGE_CODES.filter(code => !['zh', 'zh_hant', 'en'].includes(code));
   const combos = [];
@@ -132,52 +134,57 @@ function renderCombos() {
   }
 
   if (!combos.length) {
-    comboList.innerHTML = '<p class="empty">暂时无法读取语言包目录。</p>';
+    comboList.innerHTML = `<p class="empty">${t('options_none_catalog')}</p>`;
     return;
   }
 
   comboList.replaceChildren(...combos.map(({ key, from, to, plan }) => {
     const missing = missingPacks(plan.packs, installed);
     const ready = missing.length === 0;
+    const packNames = plan.packs.map(pack => packLabel(pack, lang)).join(' + ');
     const meta = ready
-      ? `已就绪，可离线使用（${plan.packs.map(packLabel).join(' + ')}）`
-      : `需 ${plan.packs.length} 个语言包：${plan.packs.map(packLabel).join(' + ')} · 约 ${formatBytes(estimateBytes(missing))}`;
+      ? t('options_ready_pair', { packs: packNames })
+      : t('options_needs', { n: plan.packs.length, packs: packNames, size: formatBytes(estimateBytes(missing)) });
 
     return row({
-      name: `${languageName(from)} → ${languageName(to)}`,
+      name: `${languageName(from, lang)} → ${languageName(to, lang)}`,
       meta,
       metaKind: ready ? 'ready' : '',
       actions: ready
         ? []
-        : [{ label: `下载（${missing.length}/${plan.packs.length}）`, onClick: () => runTask(key, `下载 ${languageName(from)} → ${languageName(to)}`) }]
+        : [{ label: t('download_progress', { done: missing.length, total: plan.packs.length }), onClick: () => runTask(key, `${t('download')} ${languageName(from, lang)} → ${languageName(to, lang)}`) }]
     });
   }));
 }
 
 function renderPacks() {
+  const lang = uiLang();
   let items = catalog;
   if (keyword) {
     const lower = keyword.toLowerCase();
     items = catalog.filter(item =>
       item.key.includes(lower) ||
-      languageName(item.from).includes(lower) ||
-      languageName(item.to).includes(lower));
+      languageName(item.from).toLowerCase().includes(lower) ||
+      languageName(item.to).toLowerCase().includes(lower) ||
+      languageName(item.from, 'en').toLowerCase().includes(lower) ||
+      languageName(item.to, 'en').toLowerCase().includes(lower));
   }
 
   if (!items.length) {
-    packList.innerHTML = '<p class="empty">没有匹配的语言包。</p>';
+    packList.innerHTML = `<p class="empty">${t('options_none_match')}</p>`;
     return;
   }
 
   packList.replaceChildren(...items.map(item => {
     const ready = installed.includes(item.key);
+    const name = `${languageName(item.from, lang)} → ${languageName(item.to, lang)}`;
     return row({
-      name: item.label,
-      meta: ready ? '已下载，可离线使用' : `预计下载约 ${formatBytes(item.estimateBytes)}`,
+      name,
+      meta: ready ? t('options_ready_pack') : t('options_estimate', { size: formatBytes(item.estimateBytes) }),
       metaKind: ready ? 'ready' : '',
       actions: ready
-        ? [{ label: '删除', className: 'remove', onClick: () => removePack(item.key) }]
-        : [{ label: '下载', onClick: () => runTask(item.key, `下载 ${item.label}`) }]
+        ? [{ label: t('remove'), className: 'remove', onClick: () => removePack(item.key) }]
+        : [{ label: t('download'), onClick: () => runTask(item.key, `${t('download')} ${name}`) }]
     });
   }));
 }
@@ -186,8 +193,8 @@ function render() {
   renderCombos();
   renderPacks();
   totalsLine.textContent = installed.length
-    ? `已安装 ${installed.length} 个语言包`
-    : '尚未安装语言包';
+    ? t('options_totals', { n: installed.length })
+    : t('options_totals_none');
 }
 
 async function loadState() {
@@ -211,7 +218,7 @@ async function refresh() {
     if (navigator.storage?.estimate) {
       const { usage } = await navigator.storage.estimate();
       if (usage) {
-        totalsLine.textContent += ` · 本地占用约 ${formatBytes(usage)}`;
+        totalsLine.textContent += ` · ${t('options_usage', { size: formatBytes(usage) })}`;
       }
     }
   } catch (error) {
@@ -225,4 +232,17 @@ searchInput.addEventListener('input', () => {
 });
 
 $('refresh').onclick = refresh;
-refresh();
+
+// 界面语言：切换后存盘并刷新页面，全部文案按新语言重画
+$('ui-lang').onchange = event => {
+  setUiLang(event.target.value);
+  location.reload();
+};
+
+initI18n().then(() => {
+  applyI18n(document);
+  chrome.storage.local.get('uiLang').then(stored => {
+    $('ui-lang').value = stored?.uiLang ?? '';
+  }).catch(() => {});
+  refresh();
+});

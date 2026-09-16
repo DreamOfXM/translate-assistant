@@ -19,6 +19,7 @@ import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js
 import { findMainContentRoot, isNeverAutoSite, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
+import { initI18n, t, uiLang } from './lib/i18n.js';
 
 const HOST_ID = 'local-translator-root';
 const SELECTION_BUTTON_LIFETIME = 4000;
@@ -26,7 +27,10 @@ const SELECTION_BUTTON_LIFETIME = 4000;
 let host = null;       // #local-translator-root
 let shadow = null;     // ShadowRoot
 let card = null;       // 当前打开的面板
-let boundInput = null; // 面板绑定的输入框
+let boundInput = null;       // 面板绑定的输入框
+
+// UI 文案按界面语言生成；focusin/mouseup/autoStart 都会先等它就绪
+const i18nReady = initI18n();
 
 /* ---------------------------------- 基础设施 --------------------------------- */
 
@@ -68,7 +72,7 @@ function status(node, message, kind = '') {
 }
 
 /** 目标语言还没产出译文时的占位文案 */
-const RESULT_PLACEHOLDER = '译文会出现在这里。';
+const RESULT_PLACEHOLDER = () => t('output_placeholder');
 
 /**
  * 把译文写进结果区。没有译文时显示占位文案，避免面板塌成一块空白。
@@ -77,7 +81,7 @@ function showResult({ result, label, copyButton }, text, targetName) {
   const value = text ?? '';
   result.textContent = value || RESULT_PLACEHOLDER;
   result.className = value ? 'lt-text lt-result' : 'lt-text lt-result placeholder';
-  if (label) label.textContent = targetName ? `译文 · ${targetName}` : '译文';
+  if (label) label.textContent = targetName ? t('output_label_named', { name: targetName }) : t('output_label');
   if (copyButton) copyButton.disabled = !value;
 }
 
@@ -112,10 +116,10 @@ async function requestTranslation(text, source, target) {
     response = await chrome.runtime.sendMessage({ type: MESSAGES.TRANSLATE, text, source, target });
   } catch (error) {
     throw new Error(String(error?.message ?? error).includes('Extension context')
-      ? '扩展已更新，请刷新页面后重试。'
-      : `无法连接翻译引擎：${error?.message ?? error}`);
+      ? t('error_updated')
+      : t('error_connect', { msg: error?.message ?? String(error) }));
   }
-  if (!response) throw new Error('翻译引擎没有响应，请重新加载扩展后重试。');
+  if (!response) throw new Error(t('error_no_response_reload'));
   if (response.error) throw new Error(response.error);
   return response.text;
 }
@@ -142,18 +146,18 @@ function openResultCard({ text, rect }) {
   card.innerHTML = `
     <div class="lt-head">
       <div>
-        <p class="lt-title">选中文本翻译</p>
-        <p class="lt-sub">本地运行 · 不上传 · 不修改页面</p>
+        <p class="lt-title">${t('sel_title')}</p>
+        <p class="lt-sub">${t('sel_sub')}</p>
       </div>
       <button class="lt-close" type="button" title="关闭">×</button>
     </div>
-    <label class="lt-field">原文
+    <label class="lt-field">${t('field_source')}
       <textarea class="lt-original" readonly rows="3">${escapeHtml(text)}</textarea>
     </label>
     ${languageBarMarkup({ to: target })}
     <div class="lt-actions">
-      <button class="lt-button lt-translate" type="button">重新翻译</button>
-      <button class="lt-button ghost lt-copy" type="button" disabled>复制译文</button>
+      <button class="lt-button lt-translate" type="button">${t('retranslate')}</button>
+      <button class="lt-button ghost lt-copy" type="button" disabled>${t('copy_translation')}</button>
     </div>
     <div class="lt-bar" hidden><i></i></div>
     <p class="lt-status"></p>
@@ -189,18 +193,18 @@ function openResultCard({ text, rect }) {
   const run = async () => {
     const { source, target: to, same } = langbar.resolve(text);
     if (same) {
-      status(message, `识别出的源语言和目标语言都是${languageName(to)}，请换一个目标语言。`, 'error');
+      status(message, t('status_same_lang', { name: languageName(to, uiLang()) }), 'error');
       return;
     }
     translateButton.disabled = true;
     bar.hidden = false;
     barFill.style.width = '0%';
-    status(message, '正在本地翻译…');
+    status(message, t('status_translating'));
     try {
       const outcome = await translate({ text, source, target: to, onProgress: showProgress });
       translated = outcome.text;
       showResult({ result, label: outputLabel, copyButton }, translated, languageName(to));
-      status(message, outcome.segments > 1 ? `已分 ${outcome.segments} 段翻译完成。` : '翻译完成。', 'ok');
+      status(message, outcome.segments > 1 ? t('status_result_segmented', { n: outcome.segments }) : t('status_result_done'), 'ok');
     } catch (error) {
       status(message, error.message, 'error');
     } finally {
@@ -212,7 +216,7 @@ function openResultCard({ text, rect }) {
   translateButton.onclick = run;
   copyButton.onclick = async () => {
     const ok = await copyText(translated);
-    status(message, ok ? '译文已复制到剪贴板。' : '复制失败，请手动选择译文复制。', ok ? 'ok' : 'error');
+    status(message, ok ? t('status_copied') : t('status_copy_failed'), ok ? 'ok' : 'error');
   };
 
   run();
@@ -235,20 +239,20 @@ function openReplyPanel({ input = null, text = '' } = {}) {
   card.innerHTML = `
     <div class="lt-head">
       <div>
-        <p class="lt-title">回复翻译助手</p>
-        <p class="lt-sub">本地处理 · 只在你确认后填入 · 不自动发布</p>
+        <p class="lt-title">${t('reply_title')}</p>
+        <p class="lt-sub">${t('reply_sub')}</p>
       </div>
       <button class="lt-close" type="button" title="关闭">×</button>
     </div>
-    <p class="lt-note">用母语写下想表达的内容，确认译文后再手动填入。插件不会替你点击发送。</p>
-    <label class="lt-field">草稿
-      <textarea class="lt-draft" placeholder="例如：这个方案我觉得可行，但预算需要再确认一下。"></textarea>
+    <p class="lt-note">${t('reply_note')}</p>
+    <label class="lt-field">${t('draft')}
+      <textarea class="lt-draft" placeholder="${t('draft_ph')}"></textarea>
     </label>
     ${languageBarMarkup({ to: target })}
     <div class="lt-actions">
-      <button class="lt-button lt-translate" type="button">生成译文</button>
-      <button class="lt-button primary-fill lt-fill" type="button" disabled>填入输入框</button>
-      <button class="lt-button ghost lt-copy" type="button" disabled>复制</button>
+      <button class="lt-button lt-translate" type="button">${t('generate')}</button>
+      <button class="lt-button primary-fill lt-fill" type="button" disabled>${t('fill')}</button>
+      <button class="lt-button ghost lt-copy" type="button" disabled>${t('copy')}</button>
     </div>
     <div class="lt-bar" hidden><i></i></div>
     <p class="lt-status"></p>
@@ -288,7 +292,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     const alive = Boolean(boundInput) && isInputAlive(boundInput);
     fillButton.disabled = !(translation && alive);
     if (translation && boundInput && !alive) {
-      status(message, '原来的输入框已失效，请重新点击输入框上的「翻译回复」。', 'error');
+      status(message, t('input_gone'), 'error');
     }
   };
 
@@ -300,13 +304,13 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     }
     const { source, target: to, same } = langbar.resolve(draftArea.value);
     if (same) {
-      status(message, `识别出的源语言和目标语言都是${languageName(to)}，请换一个目标语言。`, 'error');
+      status(message, t('status_same_lang', { name: languageName(to, uiLang()) }), 'error');
       return;
     }
     translateButton.disabled = true;
     bar.hidden = false;
     barFill.style.width = '0%';
-    status(message, '正在本地翻译，首次使用需要下载语言包…');
+    status(message, t('translating_pack'));
     try {
       const outcome = await translate({
         text: draftArea.value,
@@ -317,7 +321,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
       translation = outcome.text;
       showResult({ result, label: outputLabel, copyButton }, translation, languageName(to));
       refreshFillState();
-      status(message, input ? '请检查译文，确认后再填入。' : '当前没有绑定输入框，可复制译文使用。', 'ok');
+      status(message, input ? t('review_fill') : t('no_input'), 'ok');
     } catch (error) {
       status(message, error.message, 'error');
     } finally {
@@ -335,22 +339,22 @@ function openReplyPanel({ input = null, text = '' } = {}) {
       return;
     }
     if (writeInput(boundInput, translation)) {
-      status(message, '已填入输入框。请自行检查后发布——插件不会替你发送。', 'ok');
+      status(message, t('filled'), 'ok');
     } else {
-      status(message, '这个编辑器不接受自动填入，请复制译文后手动粘贴。', 'error');
+      status(message, t('fill_rejected'), 'error');
     }
   };
 
   copyButton.onclick = async () => {
     const ok = await copyText(translation);
-    status(message, ok ? '译文已复制。' : '复制失败，请手动选择译文复制。', ok ? 'ok' : 'error');
+    status(message, ok ? t('status_copied') : t('status_copy_failed'), ok ? 'ok' : 'error');
   };
   draftArea.addEventListener('input', () => langbar.refresh(draftArea.value));
   draftArea.addEventListener('keydown', event => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') run();
   });
 
-  status(message, draft ? '确认草稿后点击「生成译文」。' : '写下草稿后点击「生成译文」。');
+  status(message, draft ? t('reply_status_has_draft') : t('reply_status_empty'));
   draftArea.focus();
 }
 
@@ -371,12 +375,12 @@ function openInlineTranslation({ input }) {
       <span class="lt-inline-lang"></span>
       <button class="lt-close" type="button" title="关闭">×</button>
     </div>
-    <p class="lt-text lt-result placeholder">正在本地翻译…</p>
+    <p class="lt-text lt-result placeholder">${t('para_translating')}</p>
     <div class="lt-bar" hidden><i></i></div>
     <div class="lt-actions">
-      <button class="lt-button primary-fill lt-fill" type="button" disabled>填入输入框</button>
-      <button class="lt-button ghost lt-retry" type="button" disabled>重译</button>
-      <button class="lt-button ghost lt-copy" type="button" disabled>复制</button>
+      <button class="lt-button primary-fill lt-fill" type="button" disabled>${t('fill')}</button>
+      <button class="lt-button ghost lt-retry" type="button" disabled>${t('inline_retry')}</button>
+      <button class="lt-button ghost lt-copy" type="button" disabled>${t('copy')}</button>
       <button class="lt-inline-more" type="button">完整面板</button>
     </div>
     <p class="lt-status"></p>
@@ -400,7 +404,7 @@ function openInlineTranslation({ input }) {
   let translation = '';
   const detected = detectLanguage(draft);
   const target = suggestTarget(detected, DEFAULT_TARGET_LANGUAGE);
-  langLabel.textContent = `${languageName(detected)} → ${languageName(target)}`;
+  langLabel.textContent = `${languageName(detected, uiLang())} → ${languageName(target, uiLang())}`;
 
   const showProgress = progress => {
     bar.hidden = false;
@@ -414,12 +418,12 @@ function openInlineTranslation({ input }) {
     barFill.style.width = '0%';
     result.textContent = RESULT_PLACEHOLDER;
     result.classList.add('placeholder');
-    status(message, '正在本地翻译…');
+    status(message, t('status_translating'));
     try {
       const outcome = await translate({ text: draft, source: detected, target, onProgress: showProgress });
       translation = outcome.text;
       showResult({ result, label: null, copyButton }, translation, null);
-      status(message, input ? '确认后点「填入输入框」。' : '可复制译文使用。', 'ok');
+      status(message, input ? t('inline_ready') : t('inline_copy_hint'), 'ok');
     } catch (error) {
       status(message, error.message, 'error');
     } finally {
@@ -432,21 +436,21 @@ function openInlineTranslation({ input }) {
   fillButton.onclick = () => {
     if (!translation) return;
     if (!boundInput || !isInputAlive(boundInput)) {
-      status(message, '原来的输入框已失效，请重新点击输入框上的「翻译回复」。', 'error');
+      status(message, t('input_gone'), 'error');
       fillButton.disabled = true;
       return;
     }
     if (writeInput(boundInput, translation)) {
       closeCard();
     } else {
-      status(message, '这个编辑器不接受自动填入，请复制译文后手动粘贴。', 'error');
+      status(message, t('fill_rejected'), 'error');
     }
   };
 
   retryButton.onclick = run;
   copyButton.onclick = async () => {
     const ok = await copyText(translation);
-    status(message, ok ? '译文已复制。' : '复制失败，请手动选择译文复制。', ok ? 'ok' : 'error');
+    status(message, ok ? t('status_copied') : t('status_copy_failed'), ok ? 'ok' : 'error');
   };
 
   run();
@@ -454,7 +458,8 @@ function openInlineTranslation({ input }) {
 
 /* ---------------------------------- 页面交互 --------------------------------- */
 
-document.addEventListener('focusin', event => {
+document.addEventListener('focusin', async event => {
+  await i18nReady;
   if (isEditableInput(event.target)) {
     mount();
     attachInputButton(event.target);
@@ -466,7 +471,7 @@ function attachInputButton(inputNode) {
   if (inputNode.dataset.ltBound) return;
   inputNode.dataset.ltBound = '1';
 
-  const button = element('button', 'lt-float', { type: 'button', textContent: '翻译回复' });
+  const button = element('button', 'lt-float', { type: 'button', textContent: t('float_reply') });
   shadow.append(button);
 
   const reposition = () => {
@@ -498,7 +503,8 @@ function attachInputButton(inputNode) {
   window.addEventListener('resize', reposition);
 }
 
-document.addEventListener('mouseup', event => {
+document.addEventListener('mouseup', async event => {
+  await i18nReady;
   if (host && event.composedPath?.().includes(host)) return;
   const selection = window.getSelection();
   const text = selection?.toString().trim();
@@ -515,7 +521,7 @@ document.addEventListener('mouseup', event => {
   mount();
   // 只清掉上一个「翻译选中」按钮，保留输入框旁的「翻译回复」按钮
   shadow.querySelectorAll('.lt-selection').forEach(node => node.remove());
-  const button = element('button', 'lt-float lt-selection', { type: 'button', textContent: '翻译选中' });
+  const button = element('button', 'lt-float lt-selection', { type: 'button', textContent: t('float_select') });
   button.style.left = `${Math.min(Math.max(8, rect.left), window.innerWidth - 108)}px`;
   button.style.top = `${Math.max(8, rect.top - 36)}px`;
   button.onclick = () => {
@@ -621,23 +627,24 @@ async function directionReady(source) {
 }
 
 async function autoStart() {
+  await i18nReady;
   // 站点黑名单先行：GitHub 这类应用型站点每一页都是界面零件，
   // 主流做法（Chrome「永不翻译这些网站」、沉浸式翻译「永不翻译此网站」）
   // 都是站点级开关；手动点「双语对照」仍然可翻。
   if (isNeverAutoSite(globalThis.location?.hostname ?? window.location?.hostname)) {
-    hoverReader.setBubbleNotice({ text: '此站点不自动翻译 · 点击翻正文' });
+    hoverReader.setBubbleNotice({ text: t('bubble_site') });
     return;
   }
   const source = pageLanguage();
   if (!source) return;
   // 中文网页对中文读者没有翻译价值；把原因说在按钮上，别让用户猜
   if (source === READ_TARGET_LANGUAGE) {
-    hoverReader.setBubbleNotice({ text: '中文页面 · 无需翻译' });
+    hoverReader.setBubbleNotice({ text: t('bubble_zh') });
     return;
   }
   if (!(await directionReady(source))) {
     // 不静默装死：告诉用户为什么没翻；点击按钮=开始翻译（手动触发允许下载）
-    hoverReader.setBubbleNotice({ text: '缺语言包 · 点击翻译并下载' });
+    hoverReader.setBubbleNotice({ text: t('bubble_pack') });
     return;
   }
   hoverReader.setBubbleNotice(null);

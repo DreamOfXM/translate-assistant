@@ -19,6 +19,7 @@
 import { detectLanguageByRatio } from './languages.js';
 import { MAX_TEXT_LENGTH } from './text.js';
 import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage } from './content-extract.js';
+import { t } from './i18n.js';
 
 /** popup 与 content script 共用的开关存储键 */
 export const HOVER_STORAGE_KEY = 'hoverTranslate';
@@ -36,7 +37,7 @@ const BATCH_LIMIT = 200;
 /** DOM 变动的合并窗口：无限滚动/SPA 一次能连着插入几十个节点，逐个重扫没有意义 */
 const MUTATION_DEBOUNCE = 400;
 
-const BUBBLE_IDLE = '双语对照';
+const bubbleIdle = () => t('bubble_idle');
 
 const PARA_STYLES = `
 :host { all: initial; }
@@ -132,10 +133,10 @@ function buildResult() {
   root.innerHTML = `
     <style>${PARA_STYLES}</style>
     <div class="lt-wrap">
-      <p class="lt-para-text">翻译中…</p>
+      <p class="lt-para-text">${t('para_translating')}</p>
       <div class="lt-para-ops">
-        <button class="lt-para-copy" type="button" disabled>复制</button>
-        <button class="lt-para-hide" type="button">收起</button>
+        <button class="lt-para-copy" type="button" disabled>${t('para_copy')}</button>
+        <button class="lt-para-hide" type="button">${t('para_hide')}</button>
       </div>
     </div>`;
 
@@ -148,8 +149,8 @@ function buildResult() {
   copyButton.onclick = async () => {
     try {
       await navigator.clipboard.writeText(translation);
-      copyButton.textContent = '已复制';
-      setTimeout(() => { copyButton.textContent = '复制'; }, 1200);
+      copyButton.textContent = t('para_copied');
+      setTimeout(() => { copyButton.textContent = t('para_copy'); }, 1200);
     } catch {
       /* 没有剪贴板权限时静默失败，用户仍可手动选择译文 */
     }
@@ -322,7 +323,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
         results.delete(el);
         return null;
       }
-      node.setError(error?.message ?? String(error));
+      node.setError(t('para_failed', { msg: error?.message ?? String(error) }));
     }
     return node;
   };
@@ -388,7 +389,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     pruneBatchNodes();
     for (const node of batchNodes) node.host.hidden = true;
     queued = new WeakSet();   // 收起后再点「双语对照」要能重新入队
-    if (bubble) bubble.textContent = BUBBLE_IDLE;
+    if (bubble) bubble.textContent = bubbleIdle();
   };
 
   const updateBubble = () => {
@@ -396,14 +397,14 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     const done = translatedCount();
     if (queue.length) {
       // 总数至少是「已译 + 待译」，否则会出现 3/2 这种倒退的进度
-      bubble.textContent = `翻译中 ${done}/${Math.max(discovered, done + queue.length)} · 点击停止`;
+      bubble.textContent = t('bubble_progress', { done, total: Math.max(discovered, done + queue.length) });
       return;
     }
     if (!done && bubbleNotice) {
       bubble.textContent = bubbleNotice.text;
       return;
     }
-    bubble.textContent = done ? `已译 ${done} 段 · 收起` : BUBBLE_IDLE;
+    bubble.textContent = done ? t('bubble_done', { n: done }) : bubbleIdle();
   };
 
   /** 队列串行消费：翻译本来就是排队执行的，页面本身不能被卡住 */
@@ -536,7 +537,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   const startLive = () => {
     if (liveMode) return;
     if (looksLikeAppPage(document)) {
-      bubbleNotice = { text: '工具页不自动翻译 · 点击翻正文' };
+      bubbleNotice = { text: t('bubble_tool') };
       updateBubble();
       return;
     }
@@ -563,9 +564,9 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     // 这里不能用队列长度判断：enqueue 里的 pump 会同步取走队首，
     // 只剩一段的页面会被误报成「没有需要翻译的段落」
     if (!blocks.length && bubble) {
-      bubble.textContent = '没有需要翻译的段落';
+      bubble.textContent = t('bubble_nothing');
       setTimeout(() => {
-        if (!queue.length && bubble) bubble.textContent = BUBBLE_IDLE;
+        if (!queue.length && bubble) bubble.textContent = bubbleIdle();
       }, 1600);
     }
     pump();
@@ -575,8 +576,8 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     if (bubble?.isConnected) return bubble;
     bubble = element('button', 'lt-bubble', {
       type: 'button',
-      title: '逐段翻译正文，译文插在每段原文下面',
-      textContent: BUBBLE_IDLE
+      title: t('bubble_title'),
+      textContent: bubbleIdle()
     });
     bubble.onclick = () => {
       if (isPumping() && queue.length) {

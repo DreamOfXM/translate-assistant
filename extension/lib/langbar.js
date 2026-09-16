@@ -11,8 +11,12 @@ import {
   AUTO_DETECT, DEFAULT_TARGET_LANGUAGE,
   languageName, orderedLanguageCodes, detectLanguage, resolveDirection, suggestTarget
 } from './languages.js';
+import { t, uiLang } from './i18n.js';
 
 export const AUTO_LABEL = '自动检测';
+
+/** 语言条文案随界面语言：自动检测项、选项名 */
+function label(code) { return languageName(code, uiLang()); }
 
 function option(value, label, selected) {
   return `<option value="${value}"${value === selected ? ' selected' : ''}>${label}</option>`;
@@ -24,17 +28,18 @@ function option(value, label, selected) {
  */
 export function languageBarMarkup({ from = AUTO_DETECT, to = DEFAULT_TARGET_LANGUAGE } = {}) {
   const codes = orderedLanguageCodes();
+  const auto = t('auto_detect');
   return `
     <div class="lt-langbar">
-      <select class="lt-source" aria-label="源语言" title="源语言，默认自动检测">
-        ${option(AUTO_DETECT, AUTO_LABEL, from)}
-        ${codes.map(code => option(code, languageName(code), from)).join('')}
+      <select class="lt-source" aria-label="${auto}" title="${auto}">
+        ${option(AUTO_DETECT, auto, from)}
+        ${codes.map(code => option(code, label(code), from)).join('')}
       </select>
       <span class="lt-arrow" aria-hidden="true">→</span>
-      <select class="lt-target" aria-label="目标语言" title="目标语言">
-        ${codes.map(code => option(code, languageName(code), to)).join('')}
+      <select class="lt-target" aria-label="${t('target_language')}">
+        ${codes.map(code => option(code, label(code), to)).join('')}
       </select>
-      <button class="lt-swap" type="button" title="交换语言">⇄</button>
+      <button class="lt-swap" type="button" title="${t('swap_languages')}">⇄</button>
     </div>`;
 }
 
@@ -54,9 +59,10 @@ export function bindLanguageBar(root, { onChange } = {}) {
   const refresh = text => {
     if (text !== undefined) lastText = String(text ?? '');
     const automatic = sourceSelect.value === AUTO_DETECT;
+    const auto = t('auto_detect');
     autoOption().textContent = automatic && lastText.trim()
-      ? `${AUTO_LABEL} · ${languageName(detectLanguage(lastText))}`
-      : AUTO_LABEL;
+      ? `${auto} · ${languageName(detectLanguage(lastText), uiLang())}`
+      : auto;
   };
 
   /**

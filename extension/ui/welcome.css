@@ -24,6 +24,21 @@ main { width: min(560px, 100%); }
 h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .3px; }
 .lead { margin: 6px 0 0; color: var(--text-2); font-size: 14px; }
 
+.lang-pick { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+.lang-pick-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-right: 4px; }
+.lang-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.lang-btn:hover { border-color: var(--brand); }
+.lang-btn.active { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong); font-weight: 600; }
+
 .steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
 .step {
   display: flex;

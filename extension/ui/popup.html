@@ -22,33 +22,33 @@
               font-size="150" font-weight="700" fill="#0284C7"
               text-anchor="middle" dominant-baseline="central">译</text>
       </svg>
-      <h1>翻译助手</h1>
-      <span class="badge">本地 · 离线</span>
+      <h1 data-i18n="app_name">翻译助手</h1>
+      <span class="badge" data-i18n="badge">本地 · 离线</span>
     </header>
 
     <div class="onboard" id="onboard" hidden>
       <div class="onboard-text">
-        <strong>先装语言包，才能开始翻译</strong>
-        <small>首次下载约 40 MB，之后断网也能用</small>
+        <strong data-i18n="onboard_title">先装语言包，才能开始翻译</strong>
+        <small data-i18n="onboard_sub">首次下载约 40 MB，之后断网也能用</small>
       </div>
-      <button id="onboard-go" type="button">去安装</button>
+      <button id="onboard-go" type="button" data-i18n="onboard_go">去安装</button>
     </div>
 
-    <textarea id="source" placeholder="把要翻译的内容粘进来…"></textarea>
+    <textarea id="source" data-i18n-placeholder="placeholder" placeholder="把要翻译的内容粘进来…"></textarea>
 
     <div id="langbar"></div>
 
     <div class="actions">
-      <button id="run" type="button">翻译</button>
-      <button id="copy" class="ghost" type="button" disabled>复制</button>
+      <button id="run" type="button" data-i18n="translate">翻译</button>
+      <button id="copy" class="ghost" type="button" disabled data-i18n="copy">复制</button>
     </div>
 
     <div class="bar" id="bar" hidden><i></i></div>
     <p class="status" id="status"></p>
 
     <div class="output" id="output">
-      <div class="label" id="output-label">译文</div>
-      <p class="text placeholder" id="result">译文会出现在这里。</p>
+      <div class="label" id="output-label" data-i18n="output_label">译文</div>
+      <p class="text placeholder" id="result" data-i18n="output_placeholder">译文会出现在这里。</p>
     </div>
 
     <section class="settings">
@@ -57,8 +57,8 @@
           <path d="M12 5.5C9.5 4 6 3.6 3.5 4v14c2.5-.4 6 0 8.5 1.5 2.5-1.5 6-1.9 8.5-1.5V4c-2.5-.4-6 0-8.5 1.5Zm0 0v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
         </svg>
         <div class="toggle-text">
-          <span>整页双语对照</span>
-          <small>打开网页自动逐段翻译，译文插在每段原文下面</small>
+          <span data-i18n="toggle_auto">整页双语对照</span>
+          <small data-i18n="toggle_auto_sub">打开网页自动逐段翻译，译文插在每段原文下面</small>
         </div>
         <label class="switch">
           <input type="checkbox" id="auto" checked />
@@ -72,8 +72,8 @@
           <path d="M12 3h7a2 2 0 0 1 2 2v7h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
         <div class="toggle-text">
-          <span>右下角悬浮按钮</span>
-          <small>手动点「双语对照」翻整页，或收起全部译文</small>
+          <span data-i18n="toggle_page">右下角悬浮按钮</span>
+          <small data-i18n="toggle_page_sub">手动点「双语对照」翻整页，或收起全部译文</small>
         </div>
         <label class="switch">
           <input type="checkbox" id="page" checked />
@@ -86,8 +86,8 @@
           <path d="M4 6c3-2.5 13-2.5 16 0M7 11c2-1.5 8-1.5 10 0M10 16c1-.8 3-.8 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
         <div class="toggle-text">
-          <span>悬停出「译」按钮</span>
-          <small>鼠标停在段落上出现「译」，点一下翻那一段</small>
+          <span data-i18n="toggle_hover">悬停出「译」按钮</span>
+          <small data-i18n="toggle_hover_sub">鼠标停在段落上出现「译」，点一下翻那一段</small>
         </div>
         <label class="switch">
           <input type="checkbox" id="hover" />
@@ -97,8 +97,8 @@
     </section>
 
     <footer>
-      <span id="packs">语言包：…</span>
-      <button id="manage" class="link" type="button">语言包管理</button>
+      <span id="packs">…</span>
+      <button id="manage" class="link" type="button" data-i18n="packs_manage">语言包管理</button>
     </footer>
 
     <script type="module" src="popup.js"></script>

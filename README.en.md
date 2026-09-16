@@ -149,3 +149,4 @@ scripts/              bundling and engine-verification scripts
 - After installing the extension you need to refresh already-open pages
 
 A welcome page (three-step guide + privacy note + one-click link to install language packs) opens automatically on first install; extension updates never open it.
+The UI speaks Chinese and English — it follows your browser language by default, and can be switched on the welcome page or in the language-pack manager.

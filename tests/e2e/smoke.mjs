@@ -211,7 +211,8 @@ try {
   extensionId = new URL(worker.url()).host;
   await check('扩展加载：Service Worker 就绪', () => `id=${extensionId}`, 30000);
 
-  /* 2. 扩展页面可用 */
+  /* 2. 扩展页面可用（固定中文 UI，断言按中文文案走） */
+  await worker.evaluate(() => chrome.storage.local.set({ uiLang: 'zh' }));
   extensionPage = await context.newPage();
   watchPage(extensionPage, 'popup');
   await extensionPage.goto(`chrome-extension://${extensionId}/ui/popup.html`);

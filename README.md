@@ -86,6 +86,7 @@ npm run build
 4. **刷新已经打开的网页**（content script 只在新加载的页面注入）
 
 首次安装会自动打开使用引导页（三步上手 + 隐私说明 + 一键去装语言包）；扩展更新时不会弹出。
+界面支持中文 / English：默认跟随浏览器语言，欢迎页与「语言包管理」页都可切换。
 
 打包成 zip：`npm run build` 会同时生成 `dist/translate-assistant.zip`。
 
