@@ -75,6 +75,7 @@ async function run() {
   }
 
   runButton.disabled = true;
+  runButton.classList.add('loading');
   bar.hidden = false;
   barFill.style.width = '0%';
   setStatus('正在本地翻译…');
@@ -97,16 +98,26 @@ async function run() {
     setStatus(error.message, 'error');
   } finally {
     runButton.disabled = false;
+    runButton.classList.remove('loading');
     bar.hidden = true;
   }
 }
 
 runButton.onclick = run;
 
+const COPY_LABEL = '复制';
+let copyTimer = 0;
 copyButton.onclick = async () => {
   try {
     await navigator.clipboard.writeText(resultText);
     setStatus('译文已复制。', 'ok');
+    copyButton.textContent = '已复制 ✓';
+    copyButton.classList.add('copied');
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copyButton.textContent = COPY_LABEL;
+      copyButton.classList.remove('copied');
+    }, 2000);
   } catch {
     setStatus('复制失败，请手动选择译文复制。', 'error');
   }
@@ -143,10 +154,15 @@ chrome.runtime.onMessage.addListener(message => {
   return false;
 });
 
+const onboard = $('onboard');
+$('onboard-go').onclick = () => chrome.runtime.openOptionsPage();
+
 chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS })
   .then(response => {
     const count = response?.installed?.length ?? 0;
     packsLine.textContent = count ? `已安装 ${count} 个语言包` : '尚未安装语言包';
+    // 一个语言包都没装时，把「去安装」引导卡顶在最上面
+    onboard.hidden = count > 0;
   })
   .catch(() => {
     packsLine.textContent = '语言包状态不可用';

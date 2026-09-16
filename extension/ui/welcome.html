@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>欢迎使用翻译助手</title>
+    <link rel="stylesheet" href="tokens.css" />
+    <link rel="stylesheet" href="welcome.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+          <defs>
+            <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#38BDF8" />
+              <stop offset="1" stop-color="#14B8A6" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="112" fill="url(#logo-g)" />
+          <rect x="112" y="128" width="288" height="204" rx="52" fill="#fff" />
+          <path d="M232 316 L150 388 L196 316 Z" fill="#fff" />
+          <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+                font-size="150" font-weight="700" fill="#0284C7"
+                text-anchor="middle" dominant-baseline="central">译</text>
+        </svg>
+        <div>
+          <h1>翻译助手</h1>
+          <p class="lead">整个翻译在你的浏览器里完成——不需要 API Key，不上传任何文本，语言包装好后断网也能用。</p>
+        </div>
+      </header>
+
+      <section class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <div class="step-text">
+            <strong>安装语言包</strong>
+            <small>第一次点「去安装」下载英→中语言包（约 40 MB），之后全部离线。</small>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <div class="step-text">
+            <strong>打开外文网页</strong>
+            <small>整页双语对照默认开启：译文自动逐段插在原文下面，不用点任何按钮。</small>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <div class="step-text">
+            <strong>选中即译，中文写回复</strong>
+            <small>选中外文点「翻译选中」出结果卡片；在评论框点「翻译回复」，用中文写草稿，确认后才填入。</small>
+          </div>
+        </div>
+      </section>
+
+      <p class="privacy">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3l7 3v5c0 4.4-3 8.4-7 9.5C8 19.4 5 15.4 5 11V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M9 11.5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        隐私承诺：网页文本、草稿、译文全部留在你的设备上，网络请求只有下载语言包本身。
+      </p>
+
+      <div class="cta">
+        <button id="install-pack" type="button">安装语言包</button>
+        <button id="close" class="ghost" type="button">开始使用</button>
+      </div>
+    </main>
+    <script type="module" src="welcome.js"></script>
+  </body>
+</html>

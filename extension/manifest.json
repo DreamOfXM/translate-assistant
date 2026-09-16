@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "翻译助手",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "在浏览器本地翻译选中文本和回复草稿，无需 API Key，语言包装好后可离线使用。",
   "permissions": ["storage", "contextMenus", "offscreen"],
   "homepage_url": "https://github.com/DreamOfXM/translate-assistant",

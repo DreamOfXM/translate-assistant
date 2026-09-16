@@ -1,12 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- 翻译助手 · 品牌图标（大尺寸：渐变圆角方 + 白色对话气泡 + 「译」）
+       配色与 ui/tokens.css 同步：渐变 #38BDF8 → #14B8A6 -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1a73e8"/>
-      <stop offset="1" stop-color="#1558b0"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#14B8A6"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="104" fill="url(#bg)"/>
-  <text x="256" y="278" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
-        font-size="272" font-weight="600" fill="#ffffff"
-        text-anchor="middle" dominant-baseline="middle">译</text>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="112" y="128" width="288" height="204" rx="52" fill="#ffffff"/>
+  <path d="M232 316 L150 388 L196 316 Z" fill="#ffffff"/>
+  <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+        font-size="150" font-weight="700" fill="#0284C7"
+        text-anchor="middle" dominant-baseline="central">译</text>
 </svg>

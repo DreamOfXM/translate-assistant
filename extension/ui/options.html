@@ -3,19 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <title>语言包管理 · 翻译助手</title>
+    <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main>
-      <header>
-        <h1>语言包管理</h1>
-        <p class="lead">
-          翻译在你的浏览器里完成，不需要 API Key。首次使用某个方向会下载对应语言包，之后可离线使用。
-        </p>
-        <p class="source">
-          模型来源：<a href="https://github.com/mozilla/firefox-translations-models" target="_blank" rel="noreferrer">Mozilla Firefox Translations</a>　·　许可证：MPL-2.0　·
-          运行时：<a href="https://github.com/browsermt/bergamot-translator" target="_blank" rel="noreferrer">bergamot-translator</a>（MPL-2.0）
-        </p>
+      <header class="hero">
+        <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+          <defs>
+            <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#38BDF8" />
+              <stop offset="1" stop-color="#14B8A6" />
+            </linearGradient>
+          </defs>
+          <rect width="512" height="512" rx="112" fill="url(#logo-g)" />
+          <rect x="112" y="128" width="288" height="204" rx="52" fill="#fff" />
+          <path d="M232 316 L150 388 L196 316 Z" fill="#fff" />
+          <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+                font-size="150" font-weight="700" fill="#0284C7"
+                text-anchor="middle" dominant-baseline="central">译</text>
+        </svg>
+        <div class="hero-text">
+          <h1>语言包管理</h1>
+          <p class="lead">
+            翻译在你的浏览器里完成，不需要 API Key。首次使用某个方向会下载对应语言包，之后可离线使用。
+          </p>
+          <p class="source">
+            模型来源：<a href="https://github.com/mozilla/firefox-translations-models" target="_blank" rel="noreferrer">Mozilla Firefox Translations</a>　·　许可证：MPL-2.0　·
+            运行时：<a href="https://github.com/browsermt/bergamot-translator" target="_blank" rel="noreferrer">bergamot-translator</a>（MPL-2.0）
+          </p>
+        </div>
       </header>
 
       <div class="totals">
@@ -32,7 +49,7 @@
         <p class="hint">
           Mozilla 只发布「各语言 ↔ 英语」的模型，所以中文 ↔ 日语这类方向会经英语中转，需要两个语言包。
         </p>
-        <div id="combos" class="list"></div>
+        <div id="combos" class="cards"></div>
       </section>
 
       <section>

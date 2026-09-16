@@ -1,0 +1,91 @@
+/**
+ * 欢迎页样式。引用 tokens.css 的语义变量，与 popup / options 同一套设计系统。
+ */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(720px 320px at 50% -80px, var(--brand-tint), transparent 70%),
+    var(--bg);
+}
+* { box-sizing: border-box; }
+button { font-family: inherit; }
+
+main { width: min(560px, 100%); }
+
+.hero { display: flex; gap: 16px; align-items: center; margin-bottom: 26px; }
+.logo { width: 64px; height: 64px; border-radius: 16px; flex: none; box-shadow: var(--shadow-brand); }
+h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .3px; }
+.lead { margin: 6px 0 0; color: var(--text-2); font-size: 14px; }
+
+.steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+.step {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+.step-num {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--brand-grad);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.step-text strong { font-size: 14.5px; }
+.step-text small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
+
+.privacy {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 0 0 24px;
+  padding: 11px 14px;
+  border-radius: var(--r-md);
+  background: var(--brand-tint);
+  color: var(--brand-strong);
+  font-size: 12.5px;
+}
+.privacy svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+
+.cta { display: flex; gap: 10px; }
+.cta button {
+  flex: 1;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--r-md);
+  background: var(--brand-grad);
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: var(--shadow-brand);
+  transition: transform var(--t-fast), filter var(--t-fast);
+}
+.cta button:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.cta button:active { transform: translateY(0); }
+.cta button.ghost {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-1);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.cta button.ghost:hover { background: var(--surface-2); filter: none; }

@@ -315,7 +315,13 @@ async function setupContextMenu() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(setupContextMenu);
+// 首次安装时打开欢迎页（更新不弹，避免打扰老用户）
+chrome.runtime.onInstalled.addListener(details => {
+  setupContextMenu();
+  if (details.reason === 'install') {
+    chrome.tabs.create({ url: chrome.runtime.getURL('ui/welcome.html') });
+  }
+});
 chrome.runtime.onStartup.addListener(setupContextMenu);
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {

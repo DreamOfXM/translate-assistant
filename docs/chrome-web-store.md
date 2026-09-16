@@ -14,7 +14,7 @@
 
 - 本地先跑 `npm run build`，上传 **`dist/translate-assistant.zip`**
 - zip 顶层就是 `manifest.json`（build 脚本保证），不要再多套一层目录
-- 当前版本：**1.0.0**
+- 当前版本：**1.1.0**
 
 ## 2. 商店文案（Store listing）
 

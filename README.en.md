@@ -50,7 +50,7 @@ Chinese paragraphs show no button (no translation value for Chinese readers), an
 Behavior details:
 
 - The button shows live progress "Translating N/M · click to stop", and can be stopped at any time
-- **Only the main article content is translated**: it first looks for a content root among semantic containers (`article` / `main` / `[role=main]` / common CMS class names), and falls back to Readability-lite scoring when none is found; nav, sidebars, footers, ad slots, comment sections, and link-dense blocks are always skipped. When no content root can be identified (e.g. plain pages with bare paragraphs directly under `<body>`), it falls back to "translate every qualifying block" — better to translate too much than to miss the real article
+- **Only the main article content is translated**: it first looks for a content root among semantic containers (`article` / `main` / `[role=main]` / common CMS class names), and falls back to Readability-lite scoring when none is found; nav, sidebars, footers, ad slots, comment sections, and link-dense blocks are always skipped. When no content root can be identified (e.g. plain pages with bare paragraphs directly under `<body>`), or when the article text is scattered across several similarly-sized containers (no single container covers the bulk of the page's paragraph score), it falls back to "translate every qualifying block" — better to translate too much than to miss the real article
 - Only translates leaf blocks: nested structures like `blockquote > p` are not translated twice; hidden templates and ad slots are skipped
 - Chinese pages are not auto-translated; at most 200 paragraphs per run, to keep a very long page from freezing the engine
 - **Translation nodes show only the translation**: the original paragraph stays above on the page, so the node does not repeat the source (avoids a noisy UI); on failure the node shows the error in red in place, still making it clear which paragraph failed
@@ -146,3 +146,5 @@ scripts/              bundling and engine-verification scripts
 - A resident offscreen document keeps the loaded packs (tens of MB of memory) until the extension is reloaded or removed — memory traded for "no cold start on the second translation"
 - Some custom editors (e.g. certain rich-text frameworks) reject programmatic filling, in which case the panel prompts you to use copy instead
 - After installing the extension you need to refresh already-open pages
+
+A welcome page (three-step guide + privacy note + one-click link to install language packs) opens automatically on first install; extension updates never open it.

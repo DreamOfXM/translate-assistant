@@ -3,13 +3,36 @@
   <head>
     <meta charset="utf-8" />
     <title>翻译助手</title>
+    <link rel="stylesheet" href="tokens.css" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <header>
+    <header class="brand">
+      <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#38BDF8" />
+            <stop offset="1" stop-color="#14B8A6" />
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill="url(#logo-g)" />
+        <rect x="112" y="128" width="288" height="204" rx="52" fill="#fff" />
+        <path d="M232 316 L150 388 L196 316 Z" fill="#fff" />
+        <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+              font-size="150" font-weight="700" fill="#0284C7"
+              text-anchor="middle" dominant-baseline="central">译</text>
+      </svg>
       <h1>翻译助手</h1>
-      <p class="hint">翻译在你的浏览器里完成，文本不会上传到任何服务器。</p>
+      <span class="badge">本地 · 离线</span>
     </header>
+
+    <div class="onboard" id="onboard" hidden>
+      <div class="onboard-text">
+        <strong>先装语言包，才能开始翻译</strong>
+        <small>首次下载约 40 MB，之后断网也能用</small>
+      </div>
+      <button id="onboard-go" type="button">去安装</button>
+    </div>
 
     <textarea id="source" placeholder="把要翻译的内容粘进来…"></textarea>
 
@@ -28,38 +51,50 @@
       <p class="text placeholder" id="result">译文会出现在这里。</p>
     </div>
 
-    <div class="toggle-row">
-      <div class="toggle-text">
-        <span>整页双语对照</span>
-        <small>打开网页自动逐段翻译，译文插在每段原文下面</small>
+    <section class="settings">
+      <div class="toggle-row">
+        <svg class="row-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5.5C9.5 4 6 3.6 3.5 4v14c2.5-.4 6 0 8.5 1.5 2.5-1.5 6-1.9 8.5-1.5V4c-2.5-.4-6 0-8.5 1.5Zm0 0v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+        </svg>
+        <div class="toggle-text">
+          <span>整页双语对照</span>
+          <small>打开网页自动逐段翻译，译文插在每段原文下面</small>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="auto" checked />
+          <i></i>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="auto" checked />
-        <i></i>
-      </label>
-    </div>
 
-    <div class="toggle-row">
-      <div class="toggle-text">
-        <span>右下角悬浮按钮</span>
-        <small>手动点「双语对照」翻整页，或收起全部译文</small>
+      <div class="toggle-row">
+        <svg class="row-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="12" width="9" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M12 3h7a2 2 0 0 1 2 2v7h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div class="toggle-text">
+          <span>右下角悬浮按钮</span>
+          <small>手动点「双语对照」翻整页，或收起全部译文</small>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="page" checked />
+          <i></i>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="page" checked />
-        <i></i>
-      </label>
-    </div>
 
-    <div class="toggle-row">
-      <div class="toggle-text">
-        <span>悬停出「译」按钮</span>
-        <small>鼠标停在段落上出现「译」，点一下翻那一段</small>
+      <div class="toggle-row">
+        <svg class="row-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 6c3-2.5 13-2.5 16 0M7 11c2-1.5 8-1.5 10 0M10 16c1-.8 3-.8 4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <div class="toggle-text">
+          <span>悬停出「译」按钮</span>
+          <small>鼠标停在段落上出现「译」，点一下翻那一段</small>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="hover" />
+          <i></i>
+        </label>
       </div>
-      <label class="switch">
-        <input type="checkbox" id="hover" />
-        <i></i>
-      </label>
-    </div>
+    </section>
 
     <footer>
       <span id="packs">语言包：…</span>
