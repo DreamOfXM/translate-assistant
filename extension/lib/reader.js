@@ -18,7 +18,7 @@
 
 import { detectLanguageByRatio } from './languages.js';
 import { MAX_TEXT_LENGTH } from './text.js';
-import { findMainContentRoot, shouldSkipBlock } from './content-extract.js';
+import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage } from './content-extract.js';
 
 /** popup 与 content script 共用的开关存储键 */
 export const HOVER_STORAGE_KEY = 'hoverTranslate';
@@ -183,6 +183,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
+  let appPageSkipped = false;      // 工具型页面跳过了自动翻译（手动点按钮仍可翻）
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
@@ -354,6 +355,10 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       bubble.textContent = `翻译中 ${done}/${Math.max(discovered, done + queue.length)} · 点击停止`;
       return;
     }
+    if (!done && appPageSkipped) {
+      bubble.textContent = '工具页不自动翻译 · 点击翻正文';
+      return;
+    }
     bubble.textContent = done ? `已译 ${done} 段 · 收起` : BUBBLE_IDLE;
   };
 
@@ -481,9 +486,16 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     updateBubble();
   };
 
-  /** 自动模式：页面加载完就跑，段落滚进视口即翻译 */
+  /** 自动模式：页面加载完就跑，段落滚进视口即翻译。
+   *  工具型页面（GitHub、管理后台、表单页）不自动翻——把 Watch→观看 这种界面词
+   *  翻得到处都是是纯灾难；悬浮按钮还在，用户手动点「双语对照」仍会执行。 */
   const startLive = () => {
     if (liveMode) return;
+    if (looksLikeAppPage(document)) {
+      appPageSkipped = true;
+      updateBubble();
+      return;
+    }
     liveMode = true;
     scan();
     watchDom();

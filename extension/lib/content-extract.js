@@ -250,6 +250,40 @@ function pickScoredRoot(doc) {
 }
 
 /**
+ * 一段长文本的最小字符数：工具页的块几乎都是短标签（Watch、Sep 14, 2026、
+ * 表头单词），文章页则必然有成段的自然语言。
+ */
+const LONG_BLOCK_TEXT = 60;
+
+/** 块总数达到这个量级才参与工具页判定，几个块的小页面不判 */
+const MIN_BLOCKS_FOR_APP_CHECK = 8;
+
+/** 长块占比低于这个值：满页都是短标签，是工具型页面 */
+const MAX_LONG_BLOCK_RATIO = 0.15;
+
+/**
+ * 判断这是不是「应用/工具型页面」：满页短标签、时间戳、表格单元，几乎没有
+ * 成段的自然语言（GitHub 仓库页、管理后台、搜索结果页）。这类页面整页双语
+ * 只会把 Watch→观看、Sep 14, 2026→2026年9月14日 这种界面词逐个插成噪音节点，
+ * 默认不该自动开启；用户手动点悬浮按钮仍可翻。
+ *
+ * 判据是「长块占比」：控件计数在 GitHub 上会失效（footer 链接、td、README 列表
+ * 把块总数撑得比按钮数大一个量级），而「有没有成段文字」是文章页和工具页的
+ * 本质区别，按整页 body 统计、不跟正文根收窄。
+ *
+ * @param {Document|Element} doc 要分析的文档
+ * @returns {boolean} true 表示这是工具型页面，自动整页翻译应当跳过
+ */
+export function looksLikeAppPage(doc) {
+  if (!doc?.querySelectorAll) return false;
+  const scope = doc.body ?? doc;
+  const blocks = [...scope.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, pre, td')];
+  if (blocks.length < MIN_BLOCKS_FOR_APP_CHECK) return false;
+  const longBlocks = blocks.filter(el => paragraphTextLength(el) >= LONG_BLOCK_TEXT).length;
+  return longBlocks / blocks.length < MAX_LONG_BLOCK_RATIO;
+}
+
+/**
  * 找出页面的正文主体容器。
  *
  * 分两层：先认语义容器（article/main/[role=main]/[itemprop=articleBody] 与常见 CMS 类名），

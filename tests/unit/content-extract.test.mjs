@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { findMainContentRoot, shouldSkipBlock } from '../../extension/lib/content-extract.js';
+import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage } from '../../extension/lib/content-extract.js';
 
 /** 造一段足够长的英文正文，让容器能越过「文字量太少不算正文根」的门槛 */
 const prose = (seed, sentences = 3) => Array.from(
@@ -186,6 +186,50 @@ test('保守降级：正文散落在多个体量相当的容器里时不挑最�
   for (const p of document.querySelectorAll('.case p')) {
     assert.equal(shouldSkipBlock(p), false, '散落在卡片里的段落必须当正文翻');
   }
+});
+
+test('looksLikeAppPage：满页短标签的工具页（GitHub 仓库页）应命中', () => {
+  const document = doc(`
+    <main>
+      <h1>BrokenPipe</h1>
+      <p>Steam Client Service Local Privilege Escalation Vulnerability.</p>
+      <table>
+        <tr><td>Name</td><td>Last commit message</td><td>Commit date</td></tr>
+        <tr><td>src</td><td>initial upload</td><td>Sep 14, 2026</td></tr>
+        <tr><td>docs</td><td>add readme</td><td>Sep 14, 2026</td></tr>
+        <tr><td>assets</td><td>initial upload</td><td>Sep 14, 2026</td></tr>
+      </table>
+      <ul><li><a href="#">Terms</a></li><li><a href="#">Privacy</a></li>
+      <li><a href="#">Security</a></li><li><a href="#">Status</a></li>
+      <li><a href="#">Docs</a></li><li><a href="#">Contact</a></li>
+      <li><a href="#">Pricing</a></li><li><a href="#">API</a></li>
+      <li><a href="#">Training</a></li><li><a href="#">Blog</a></li></ul>
+    </main>
+  `);
+  assert.equal(looksLikeAppPage(document), true, '成段文字占比过低的页面是工具页，不该自动整页翻译');
+});
+
+test('looksLikeAppPage：正常文章页不应命中', () => {
+  const document = doc(`
+    <article>
+      <h1>Understanding local translation</h1>
+      <p>${prose('Opening paragraph of the article')}</p>
+      <p>${prose('Second paragraph of the article')}</p>
+      <p>${prose('Third paragraph of the article')}</p>
+      <p>${prose('Fourth paragraph of the article')}</p>
+      <button>Share</button>
+    </article>
+  `);
+  assert.equal(looksLikeAppPage(document), false, '文章页有成段文字，应当照常自动双语');
+});
+
+test('looksLikeAppPage：块太少的小页面不参与判定', () => {
+  const document = doc(`
+    <p>A short note.</p>
+    <p>Another short line.</p>
+    <p>Contact us at example@example.com.</p>
+  `);
+  assert.equal(looksLikeAppPage(document), false, '块太少时不判工具页，照常走正文识别');
 });
 
 test('保守降级：整页被一个 form 包住时不把 form 当表单控件', () => {
