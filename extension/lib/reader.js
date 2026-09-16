@@ -46,7 +46,7 @@ const PARA_STYLES = `
   width: fit-content;
   max-width: 100%;
   margin: 8px 0 4px;
-  padding: 10px 12px 30px 14px;
+  padding: 8px 12px 8px 14px;
   border-radius: 8px;
   background: rgba(56, 189, 248, .13);
   color: #0F172A;
@@ -57,11 +57,12 @@ const PARA_STYLES = `
   content: '';
   position: absolute;
   left: 0;
-  top: 4px;
-  bottom: 4px;
-  width: 3px;
+  top: 3px;
+  bottom: 3px;
+  width: 2px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #38BDF8, #14B8A6);
+  /* 比品牌渐变浅一档：竖线只是轻提示，不该抢正文 */
+  background: linear-gradient(180deg, #7DD3FC, #5EEAD4);
 }
 @keyframes lt-para-in {
   from { opacity: 0; transform: translateY(3px); }
@@ -70,13 +71,17 @@ const PARA_STYLES = `
 .lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .lt-para-text.lt-para-error { color: #DC2626; }
 /* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
-   绝对定位挂在节点底部预留的空白上，不参与宽度计算（否则会把短节点撑宽） */
+   浮在节点右上角的小胶囊（沉浸式翻译同款位置），不占布局、不把短节点撑高 */
 .lt-para-ops {
   position: absolute;
-  left: 14px;
-  bottom: 7px;
+  top: 5px;
+  right: 6px;
   display: flex;
-  gap: 10px;
+  gap: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 1px 5px rgba(15, 23, 42, .16);
   opacity: 0;
   transition: opacity 150ms;
 }
@@ -96,6 +101,7 @@ const PARA_STYLES = `
 }
 @media (prefers-color-scheme: dark) {
   .lt-wrap { background: rgba(56, 189, 248, .12); color: #E2E8F0; }
+  .lt-para-ops { background: rgba(15, 23, 42, .92); box-shadow: 0 1px 5px rgba(0, 0, 0, .45); }
   .lt-para-ops button { color: #7DD3FC; }
   .lt-para-ops button:hover { background: rgba(56, 189, 248, .14); }
   .lt-para-text.lt-para-error { color: #F87171; }
@@ -276,7 +282,16 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     else el.after(node.host);
 
     try {
-      node.setText(await translateParagraph(text));
+      const translated = await translateParagraph(text);
+      // 译文与原文一样（HTML、TypeScript 这类专有名词引擎原样吐回）：
+      // 插一个一模一样的节点纯属噪音，静默撤掉
+      if (translated.trim() === text.trim()) {
+        node.host.remove();
+        results.delete(el);
+        queued.delete(el);
+        return null;
+      }
+      node.setText(translated);
     } catch (error) {
       // 段落本身就是目标语言（如混排页面里的纯中文段）：静默撤掉节点，不弹错误卡片
       if (error?.silent) {
