@@ -86,6 +86,17 @@ The UI speaks **中文 / English** — it follows your browser language and can 
 - Language and main-content detection are lightweight heuristics; exotic pages may be misjudged (biased toward translating more, never less)
 - Some rich-text editors reject programmatic input; the panel then suggests copying instead
 
+## 🛠️ Releasing / Contributing
+
+```bash
+npm run release             # patch 1.1.0 → 1.1.1: test → build → tag → bilingual Release in one go
+npm run release -- minor    # minor 1.1.0 → 1.2.0
+RELEASE_NOTES_ZH="..." RELEASE_NOTES_EN="..." npm run release   # custom release notes
+DRY_RUN=1 npm run release   # rehearsal: build only, no push
+```
+
+Requires a logged-in `gh` CLI. For everyday development please run `npm test` and `npm run test:e2e` first.
+
 ## 🧭 Project layout
 
 ```text

@@ -86,6 +86,17 @@ npm run build
 - 语言识别与正文识别均为轻量启发式，个别特殊页面可能误判（宁可多翻，不漏翻）
 - 部分富文本编辑器不接受程序化填入，此时面板会提示改用复制
 
+## 🛠️ 发版 / 贡献
+
+```bash
+npm run release             # 补丁版 1.1.0 → 1.1.1：测试 → 构建 → tag → 双语 Release 一条龙
+npm run release -- minor    # 次版本 1.1.0 → 1.2.0
+RELEASE_NOTES_ZH="..." RELEASE_NOTES_EN="..." npm run release   # 自定义 Release 说明
+DRY_RUN=1 npm run release   # 演练：只构建不推送
+```
+
+需要已登录的 `gh` CLI。日常开发请先跑 `npm test` 与 `npm run test:e2e`。
+
 ## 🧭 项目结构
 
 ```text

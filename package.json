@@ -14,7 +14,8 @@
     "typecheck": "npm test",
     "build": "node scripts/build.mjs",
     "test:e2e": "node tests/e2e/smoke.mjs",
-    "verify:engine": "node scripts/verify-engine.mjs"
+    "verify:engine": "node scripts/verify-engine.mjs",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@browsermt/bergamot-translator": "^0.4.9"
