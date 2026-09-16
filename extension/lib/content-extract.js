@@ -156,6 +156,22 @@ function hasChromeNaming(el, contentRoot) {
   return false;
 }
 
+/**
+ * 块里是否含有「值得翻译的词」：长度 ≥2、非纯数字（含 3.8k 这类数字+单位）、
+ * 非全大写缩写（HTML/API/MCP 翻不翻都一样）。纯数字行、符号行没有可翻译语义。
+ */
+export function hasTranslatableWord(text) {
+  return text
+    .split(/[^\p{L}\p{N}]+/u)
+    .some(word => {
+      if (word.length < 2) return false;
+      if (/^\d+([.,]\d+)*(k|m|b)?$/i.test(word)) return false;   // 3.8k / 197 / 2m
+      if (/^[A-Z]{2,5}$/.test(word)) return false;                 // HTML / API / MCP
+      if (/^[A-Z][a-z]+([A-Z][a-z]*)+$/.test(word)) return false;  // TypeScript / GitHub 驼峰专名
+      return true;
+    });
+}
+
 /** 句读标点：出现任意一个说明这是在「说话」，哪怕很短也值得翻 */
 const SENTENCE_PUNCT = /[.!?。！？，,;；:：(']/;
 
@@ -373,6 +389,7 @@ export function shouldSkipBlock(el, contentRoot = null) {
   const innerArticle = Boolean(contentRoot) && contentRoot !== el &&
     Boolean(contentRoot.matches?.(ARTICLE_LIKE_SELECTOR)) && contentRoot.contains(el);
   if (isInChromeRegion(el, innerArticle)) return true;
+  if (!hasTranslatableWord(textOf(el))) return true;
   if (isTrivialTitle(el)) return true;
   if (hasChromeNaming(el, contentRoot)) return true;
   if (linkDensity(el) > MAX_LINK_DENSITY) return true;

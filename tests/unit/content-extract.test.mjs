@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage, isNeverAutoSite, DEFAULT_NEVER_AUTO_SITES } from '../../extension/lib/content-extract.js';
+import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage, isNeverAutoSite, hasTranslatableWord, DEFAULT_NEVER_AUTO_SITES } from '../../extension/lib/content-extract.js';
 
 /** 造一段足够长的英文正文，让容器能越过「文字量太少不算正文根」的门槛 */
 const prose = (seed, sentences = 3) => Array.from(
@@ -259,6 +259,23 @@ test('shouldSkipBlock：表格单元的短数据（日期、文件名）不算�
   assert.equal(shouldSkipBlock(document.getElementById('msg')), true, '短 commit 信息是数据');
   assert.equal(shouldSkipBlock(document.getElementById('date')), true, '日期是数据');
   assert.equal(shouldSkipBlock(document.getElementById('long')), false, '够长的表格单元仍当正文翻');
+});
+
+test('hasTranslatableWord：纯数字、符号、缩写组成的块没有可翻译语义', () => {
+  assert.equal(hasTranslatableWord('★ 3.8k ⑂ 617'), false, 'stars/forks 数字行');
+  assert.equal(hasTranslatableWord('197 47'), false);
+  assert.equal(hasTranslatableWord('HTML ★ 1'), false, '缩写+数字（HTML 翻成 HTML 无意义）');
+  assert.equal(hasTranslatableWord('TypeScript'), false, '驼峰专名（TypeScript/GitHub）翻不翻都一样');
+  assert.equal(hasTranslatableWord('A thin pluggable planning layer for coding agents'), true, '真句子里的驼峰词不影响整块判定');
+  assert.equal(hasTranslatableWord('Show HN: Extract original images from a PDF'), true, '真句子照常翻');
+  assert.equal(hasTranslatableWord('北京的秋天很短'), true, '中文正文照常翻');
+
+  const document = doc(`
+    <div><span id="stars">★ 3.8k</span><span id="forks">⑂ 617</span></div>
+    <p id="real">${prose('A real sentence worth translating for readers')}</p>
+  `);
+  assert.equal(shouldSkipBlock(document.getElementById('stars')), true, '纯数字块不入翻译队列');
+  assert.equal(shouldSkipBlock(document.getElementById('real')), false);
 });
 
 test('shouldSkipBlock：translate=no / notranslate 标记的区域不翻', () => {
