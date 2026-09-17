@@ -638,6 +638,24 @@ test('整页双语对照：语言包没装好时不自动翻译（绝不偷偷�
   assert.equal(window.document.querySelectorAll('.lt-para-host').length, 0);
 });
 
+test('整页双语对照：日文页面不被误判成中文页，按日语方向处理', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  // 日文正文：汉字 + 假名混合（假名 ≥ 80，汉字远超 800 的中文页阈值也能过）
+  const jaPara = window.document.createElement('p');
+  jaPara.id = 'ja-para';
+  jaPara.textContent = '米国外初の旗艦店、Google Store 表参道がグランドオープンしました。'.repeat(6);
+  window.document.body.append(jaPara);
+
+  storageListeners.forEach(listener => listener({ autoBilingual: { newValue: true } }, 'local'));
+  await tick();
+
+  // ja→zh 需要 ja-en + en-zh 两个包：未装齐时给出缺包提示而不是「中文页面」
+  const bubble = shadow().querySelector('.lt-bubble');
+  assert.equal(bubble.textContent, '缺语言包 · 点击翻译并下载', '日文页面应按日语方向准备，而不是误判成中文页');
+  jaPara.remove();
+});
+
 test('整页双语对照：中文网页不自动翻译', async () => {
   reset();
   installedPacks = ['en-zh'];

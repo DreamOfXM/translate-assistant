@@ -595,6 +595,11 @@ function pageSample() {
  *  若按 body 采样会被误判成英文页，整页对照就会绕过中文正文、去翻那些零星的
  *  英文界面词——正是「分不清中英文，见到单词就翻」的观感来源。 */
 function pageLanguage() {
+  // 日语守卫（必须最先做）：日语书写大量使用汉字，按汉字数量判「中文页」
+  // 会把日文页面误判成中文而拒绝翻译。页面假名达到这个量级即可断定是日语。
+  const kana = (String(document.body?.textContent ?? '').match(/[぀-ヿ]/g) ?? []).length;
+  if (kana >= 80) return 'ja';
+
   let root = null;
   try { root = findMainContentRoot(document); } catch { /* 判定失败退回 body 采样 */ }
   if (root) {
