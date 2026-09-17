@@ -4,3 +4,4 @@ dist/
 tests/e2e/.chrome-profile/
 HANDOFF.md
 .workbuddy/
+docs/superpowers/
