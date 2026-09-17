@@ -41,6 +41,10 @@ const bubbleIdle = () => t('bubble_idle');
 
 const PARA_STYLES = `
 :host { all: initial; }
+/* 必须显式补一条：all: initial 会把 host 的 display 重置成 inline，
+   而它是作者样式，优先级高于 UA 的 [hidden]{display:none}——
+   所以凡是靠 hidden 属性控制显隐的面板，都要带上这一行。 */
+:host([hidden]) { display: none !important; }
 .lt-wrap {
   position: relative;
   /* 短译文（标题、导航项）贴内容宽度，不撑满整行；长段落自然到 100% */
@@ -191,8 +195,9 @@ function buildResult() {
       textNode.className = 'lt-para-text';
       copyButton.disabled = false;
     },
+    /* message 由调用方整句本地化好（见 t('para_failed')），本层只上样式、不拼前缀 */
     setError: message => {
-      textNode.textContent = `翻译失败：${message}`;
+      textNode.textContent = message;
       textNode.className = 'lt-para-text lt-para-error';
     }
   };
@@ -205,7 +210,15 @@ function buildResult() {
  * @param {() => ShadowRoot} deps.getShadow 懒创建 Shadow Root（第一次真正需要显示按钮时才挂载）
  * @param {(text: string) => Promise<string>} deps.translateParagraph 翻译一段文本
  */
-export function createHoverReader({ getHost, getShadow, translateParagraph }) {
+/**
+ * @param {object} deps
+ * @param {() => void} [deps.onUserIntent]
+ *   用户点击了「翻译」类按钮时**同步**回调一次。给调用方一个机会在
+ *   transient user activation 还活着的时候去踹需要手势的动作
+ *   （Chrome 内建引擎的语言包下载：模型没就绪时没有手势就必然被拒）。
+ *   放在这里而不是翻译函数里，是因为翻译链路是异步的，等到那儿手势可能已经过期。
+ */
+export function createHoverReader({ getHost, getShadow, translateParagraph, onUserIntent }) {
   let enabled = false;
   let target = null;               // 当前悬停的段落
   let pill = null;                 // 段落旁的「译」按钮
@@ -216,8 +229,9 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
-  let bubbleNotice = null;
-  let bubbleEngine = null;         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示         // { text, action } 自动翻译没跑时的原因提示（action: 'install'|null）
+  let bubbleNotice = null;         // 自动翻译未运行时的原因提示 { text, action }，action: 'install'|null
+  let bubbleDownload = null;       // 引擎模型下载中的提示：优先于「翻译中 n/m」
+  let bubbleEngine = null;         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
@@ -272,16 +286,25 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       hidePill();
       return;
     }
-    pill.style.left = `${Math.min(Math.max(8, rect.right - 30), window.innerWidth - 38)}px`;
-    pill.style.top = `${Math.min(Math.max(8, rect.top + 2), window.innerHeight - 34)}px`;
+    // 胶囊宽度随界面语言变（中文一个字 / 英文一个单词），偏移量必须实测，
+    // 写死宽度会让较宽的文案顶出右边界被裁掉
+    const w = pill.offsetWidth || 28;
+    const h = pill.offsetHeight || 28;
+    pill.style.left = `${Math.min(Math.max(8, rect.right - w - 2), window.innerWidth - w - 10)}px`;
+    pill.style.top = `${Math.min(Math.max(8, rect.top + 2), window.innerHeight - h - 6)}px`;
   };
 
   const showPill = el => {
     if (pill && target === el) return;
     hidePill();
     target = el;
-    pill = element('button', 'lt-hover-pill', { type: 'button', title: '翻译这一段', textContent: '译' });
+    pill = element('button', 'lt-hover-pill', {
+      type: 'button',
+      title: t('hover_pill_title'),
+      textContent: t('hover_pill')
+    });
     pill.onclick = () => {
+      onUserIntent?.();
       const current = target;
       hidePill();
       handle(current);
@@ -424,6 +447,11 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   const updateBubble = () => {
     if (!bubble) return;
     const done = translatedCount();
+    // 下载模型比翻译进度更值得说：下载期间段数一直停在 1/4，看着像卡死
+    if (bubbleDownload) {
+      bubble.textContent = bubbleDownload;
+      return;
+    }
     if (queue.length) {
       // 总数至少是「已译 + 待译」，否则会出现 3/2 这种倒退的进度
       bubble.textContent = t('bubble_progress', { done, total: Math.max(discovered, done + queue.length) });
@@ -590,6 +618,12 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     updateBubble();
   };
 
+  /** 引擎模型正在下载：这时候段数一直卡在「翻译中 1/4」，用户更需要知道在下载 */
+  const setBubbleDownload = text => {
+    bubbleDownload = text ?? null;
+    updateBubble();
+  };
+
   /** 翻译完成后按钮上标注本次使用的引擎（Chrome / Bergamot） */
   const setBubbleEngine = engine => {
     bubbleEngine = engine ?? null;
@@ -632,6 +666,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       }
       // 缺语言包的提示：点击=开始翻译（手动触发允许下载语言包，auto 才禁止）
       bubbleNotice = null;
+      onUserIntent?.();
       runAll();
     };
     getShadow().append(bubble);
@@ -710,6 +745,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     /** 自动翻译没有跑时的按钮提示（缺语言包/中文页/工具页） */
     setBubbleNotice,
     setBubbleEngine,
+    setBubbleDownload,
     /** 供测试注入事件 */
     _onMouseOver: onMouseOver,
     _hidePill: hidePill,

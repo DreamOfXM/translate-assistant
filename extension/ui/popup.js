@@ -1,9 +1,10 @@
-import { languageName, DEFAULT_TARGET_LANGUAGE } from '../lib/languages.js';
+import { languageName, directionKey, DEFAULT_TARGET_LANGUAGE } from '../lib/languages.js';
 import { initI18n, applyI18n, t, uiLang } from '../lib/i18n.js';
 import { languageBarMarkup, bindLanguageBar } from '../lib/langbar.js';
 import { translateInSegments } from '../lib/text.js';
 import { HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY } from '../lib/reader.js';
 import { MESSAGES, EVENTS } from '../lib/protocol.js';
+import { markUserGesture, chromeTranslateFirst } from '../lib/chrome-translator.js';
 
 const $ = id => document.getElementById(id);
 
@@ -19,6 +20,7 @@ const result = $('result');
 const packsLine = $('packs');
 
 let resultText = '';
+let installing = false;   // 引导卡正在装语言包：这段时间进度条归安装用
 
 const ready = initI18n().then(() => {
   applyI18n(document);
@@ -67,6 +69,35 @@ sourceArea.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') run();
 });
 
+/**
+ * 单段翻译：先试 Chrome 内建引擎（Google 端上模型），不行再交给扩展侧的本地语言包引擎。
+ *
+ * popup 是扩展页面，自己就是「有用户手势」的文档，所以模型下载可以在这里发起——
+ * 离屏文档没有手势，Chrome 会以 NotAllowedError 拒绝下载（见 lib/chrome-translator.js）。
+ */
+async function translateSegment(segment, source, target) {
+  const chromeText = await chromeTranslateFirst(segment, source, target, {
+    onModel: ({ phase, percent }) => {
+      if (phase !== 'downloading') return;   // 就绪/失败后，进度条交回给本次翻译自己
+      showProgress({
+        percent: percent ?? 0,
+        label: t('bubble_model_downloading', { p: percent === null ? '' : `${percent}%` }).trim()
+      });
+    }
+  });
+  if (chromeText !== null) {
+    lastEngine = 'chrome';
+    return chromeText;
+  }
+  const response = await chrome.runtime.sendMessage({
+    type: MESSAGES.TRANSLATE, text: segment, source, target
+  });
+  if (!response) throw new Error(t('error_no_response'));
+  if (response.error) throw new Error(response.error);
+  lastEngine = response.engine ?? lastEngine;
+  return response.text;
+}
+
 async function run() {
   const text = sourceArea.value;
   if (!text.trim()) {
@@ -75,12 +106,15 @@ async function run() {
     return;
   }
 
-  let lastEngine = null;
   const { source, target, same } = langbar.resolve(text);
   if (same) {
     setStatus(t('status_same_lang', { name: languageName(target, uiLang()) }), 'error');
     return;
   }
+
+  // 用户点了「翻译」= 同意下载 Chrome 内建引擎的语言包（下载必须有用户手势）
+  markUserGesture();
+  lastEngine = null;
 
   runButton.disabled = true;
   runButton.classList.add('loading');
@@ -91,14 +125,7 @@ async function run() {
   try {
     const outcome = await translateInSegments(
       text,
-      segment => chrome.runtime.sendMessage({
-        type: MESSAGES.TRANSLATE, text: segment, source, target
-      }).then(response => {
-        if (!response) throw new Error(t('error_no_response'));
-        if (response.error) throw new Error(response.error);
-        lastEngine = response.engine ?? lastEngine;
-        return response.text;
-      }),
+      segment => translateSegment(segment, source, target),
       { onProgress: showProgress }
     );
     showResult(outcome.text, t('output_label_named', { name: languageName(target, uiLang()) }));
@@ -160,22 +187,63 @@ bindToggle('hover', HOVER_STORAGE_KEY, false);
 
 // Service Worker 会把引擎进度广播给扩展页面
 chrome.runtime.onMessage.addListener(message => {
-  if (message?.type === EVENTS.TRANSLATION_PROGRESS && !bar.hidden) showProgress(message.progress);
+  if (message?.type !== EVENTS.TRANSLATION_PROGRESS) return false;
+  // 装语言包时弹窗也在等这路广播；翻译时进度条由 run() 自己控制
+  if (installing || !bar.hidden) showProgress(message.progress);
   return false;
 });
 
 const onboard = $('onboard');
-$('onboard-go').onclick = () => chrome.runtime.openOptionsPage();
+const onboardButton = $('onboard-go');
 
-chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS })
-  .then(response => {
+/** 语言包状态。只读 storage（Service Worker 不会为此拉起引擎），顺带决定引导卡显不显示 */
+async function refreshPacks() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS });
     const count = response?.installed?.length ?? 0;
     packsLine.textContent = count ? t('packs_count', { n: count }) : t('packs_none');
     // 一个语言包都没装时，把「去安装」引导卡顶在最上面
     onboard.hidden = count > 0;
-  })
-  .catch(() => {
+    return count;
+  } catch {
     packsLine.textContent = t('packs_error');
-  });
+    return 0;
+  }
+}
+
+/**
+ * 引导卡的「安装」在弹窗里把默认方向真正下下来。
+ *
+ * 下载交给 Service Worker + 离屏文档，弹窗被关掉也不影响它继续下；
+ * 只有下不动时才退回语言包管理页，留一个能自己动手的地方。
+ */
+onboardButton.onclick = async () => {
+  if (installing) return;
+  installing = true;
+  onboardButton.disabled = true;
+  bar.hidden = false;
+  barFill.style.width = '0%';
+  setStatus(t('status_downloading'));
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MESSAGES.PRELOAD_DIRECTION,
+      direction: directionKey('en', DEFAULT_TARGET_LANGUAGE)
+    });
+    if (response?.error) throw new Error(response.error);
+    onboard.hidden = true;
+    setStatus(t('onboard_done'), 'ok');
+  } catch (error) {
+    setStatus(t('onboard_failed', { msg: error.message }), 'error');
+    // 下不动就退回语言包管理页，至少留一个能自己动手的地方
+    chrome.runtime.openOptionsPage();
+  } finally {
+    installing = false;
+    onboardButton.disabled = false;
+    bar.hidden = true;
+    refreshPacks();
+  }
+};
+
+refreshPacks();
 
 

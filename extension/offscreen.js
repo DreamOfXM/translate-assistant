@@ -67,21 +67,21 @@ async function handle(op, payload) {
       const { text, source, target, tabId } = payload ?? {};
       progressTabId = tabId ?? null;
       try {
-        // Chrome 内建引擎（138+）优先：原生实现更快、Google 级质量、模型由浏览器
-        // 管理且已就绪时零成本。只认「模型已就绪」——downloadable 状态意味着要
-        // 触发浏览器级的大模型下载，那必须由用户显式决定，不静默触发。
-        // 任何失败都回落 Bergamot 语言包，用户无感知。
+        // Chrome 内建引擎（138+）：原生实现更快、Google 级质量、模型由浏览器管理。
+        //
+        // ★ 这里只认「模型已就绪」（available）。语言包未就绪时，Chrome 要求调用方
+        //   持有 transient user activation，而离屏文档是隐藏文档、拿不到手势，
+        //   create() 会抛 NotAllowedError。需要触发下载的那条路因此走 content script
+        //   —— 它跑在用户点击的页面里，手势现成（见 lib/chrome-translator.js）。
+        //   走到这里说明页面侧已经试过且未成功，直接回落 Bergamot 语言包。
         if (source !== 'auto' && chromeTranslatorAvailable()) {
           try {
             const st = await chromeTranslatorStatus(source, target);
-            // available：模型已就绪。downloadable：到达这里的请求都来自用户的
-            // 显式动作（点按钮/选中翻译），视为同意触发 Chrome 模型下载——
-            // 首段会等待下载完成，后续段落即时。自动模式不会走到这里。
-            if (st.status === 'available' || st.status === 'downloadable' || st.status === 'downloading') {
+            if (st.status === 'available') {
               const translated = await chromeTranslate(text, st.source, st.target);
               return { text: translated, installed: engine.installed(), engine: 'chrome' };
             }
-          } catch { /* Chrome 引擎失败（下载中断/不支持），回落 Bergamot */ }
+          } catch { /* Chrome 引擎失败（模型损坏/被策略禁用），回落 Bergamot */ }
         }
         const translated = await engine.translate({ text, source, target });
         // 顺带回报本次会话加载过的语言包，落盘由 Service Worker 完成

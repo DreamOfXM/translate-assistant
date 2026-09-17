@@ -8,6 +8,11 @@
  * 风格：清新友好风 —— 青蓝主色 + 蓝青渐变 + slate 中性色。
  */
 
+/* hidden 属性兜底。UA 的 [hidden]{display:none} 只是普通声明，元素自身的 class
+   一旦写了 display（如 .onboard 的 display:flex）就会把它盖掉。
+   Shadow DOM 里 :host{all:initial} 同样会重置 display，那边另有 :host([hidden])。 */
+[hidden] { display: none !important; }
+
 :root {
   color-scheme: light dark;
 

@@ -183,8 +183,11 @@ const chromium = await loadChromium();
 const { server, url } = await serveTestPage();
 
 const executablePath = resolveExecutable(chromium);
+// 默认有头（老 headless 不支持扩展）；新版 headless 已经支持，无人值守时用
+// E2E_HEADLESS=1 跑，免得弹窗（也免得在没有图形会话的环境里直接起不来）
+const headless = process.env.E2E_HEADLESS === '1';
 const context = await chromium.launchPersistentContext(profileDir, {
-  headless: false,
+  headless,
   executablePath,
   ignoreDefaultArgs: ['--disable-extensions'],
   args: [
@@ -221,6 +224,36 @@ try {
     const title = await extensionPage.textContent('.brand, h1').catch(() => null);
     return title ? `标题「${title.trim()}」` : 'DOM 就绪';
   }, 30000);
+
+  /* 2.5 popup 高度上界
+     Chrome 弹窗最高 600px，超出就出现滚动条、页脚那行「已安装 N 个语言包 /
+     语言包管理」会被挤出可视区。英文副标题换行成两行，比中文高约 45px，
+     所以中英都要量——只在中文下量会漏掉英文的回归。 */
+  await check('popup 高度不超 600px（页脚语言包行不用下拉）', async () => {
+    const measure = async lang => {
+      await worker.evaluate(l => chrome.storage.local.set({ uiLang: l }), lang);
+      await extensionPage.goto(`chrome-extension://${extensionId}/ui/popup.html`);
+      await extensionPage.waitForSelector('#source', { timeout: 15000 });
+      await extensionPage.waitForTimeout(300); // 等 refreshPacks() 落定
+      return extensionPage.evaluate(() => {
+        const onboard = document.getElementById('onboard');
+        const previous = onboard.hidden;
+        onboard.hidden = true; // 模拟「已装语言包、引导卡收起」——这时页脚必须直接可见
+        const height = document.body.scrollHeight;
+        onboard.hidden = previous;
+        return height;
+      });
+    };
+    const zh = await measure('zh');
+    const en = await measure('en');
+    await worker.evaluate(() => chrome.storage.local.set({ uiLang: 'zh' }));
+    await extensionPage.goto(`chrome-extension://${extensionId}/ui/popup.html`);
+    await extensionPage.waitForSelector('#source', { timeout: 15000 });
+    if (zh > 600 || en > 600) {
+      throw new Error(`超过 Chrome 弹窗上限：中文 ${zh}px / 英文 ${en}px（上限 600px）`);
+    }
+    return `中文 ${zh}px · 英文 ${en}px · 上限 600px`;
+  }, 90000);
 
   /* 3. 语言包状态 */
   let installed = [];

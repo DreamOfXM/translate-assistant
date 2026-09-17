@@ -9,6 +9,9 @@
  */
 export const PANEL_STYLES = `
 :host { all: initial; }
+/* all: initial 会把 host 的 display 重置成 inline，优先级高于 UA 的
+   [hidden]{display:none}；面板 host 上要用 hidden 就得靠这一条。 */
+:host([hidden]) { display: none !important; }
 
 .lt-card {
   position: fixed;
@@ -176,17 +179,21 @@ export const PANEL_STYLES = `
 .lt-float:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .lt-float:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(14, 165, 233, .3); }
 
-/* 悬停阅读：段落右上角的「译」按钮 */
+/* 悬停阅读：段落右上角的「译」/「Translate」胶囊。
+   宽度不写死：中文是单个字（min-width 兜成 28px 圆形），英文是一个单词，
+   按钮自己按内容撑开，位置计算见 reader.js 的 positionPill */
 .lt-hover-pill {
   position: fixed;
   z-index: 2147483647;
-  width: 28px;
+  box-sizing: border-box;
+  min-width: 28px;
   height: 28px;
-  padding: 0;
+  padding: 0 6px;
   border: 0;
-  border-radius: 50%;
+  border-radius: 999px;
   background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
   color: #fff;
+  white-space: nowrap;
   font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   box-shadow: 0 3px 12px rgba(14, 165, 233, .4);
   cursor: pointer;

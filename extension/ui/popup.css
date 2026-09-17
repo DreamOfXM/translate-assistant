@@ -15,7 +15,7 @@ body {
 button { font-family: inherit; }
 
 /* ── 品牌头部 ─────────────────────────────── */
-.brand { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
+.brand { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
 .logo { width: 28px; height: 28px; border-radius: 8px; flex: none;
         box-shadow: 0 2px 6px rgba(14, 165, 233, .35); }
 h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
@@ -168,7 +168,7 @@ h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
 .bar > i { display: block; height: 100%; width: 0; border-radius: 999px;
            background: var(--brand-grad); transition: width var(--t-slow) ease; }
 
-.status { margin: 8px 0 0; font-size: 12px; color: var(--text-2); min-height: 1em; }
+.status { margin: 6px 0 0; font-size: 12px; color: var(--text-2); min-height: 1em; }
 .status.error { color: var(--danger); }
 .status.ok { color: var(--ok); }
 
@@ -178,15 +178,24 @@ h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: .2px; }
 .text { margin: 5px 0 0; white-space: pre-wrap; word-break: break-word; font-size: 14px; min-height: 1.5em; }
 .text.placeholder { color: var(--text-3); }
 
+/* 还没有译文时收成一行「译文 译文会出现在这里。」——弹窗高度受 Chrome 600px 上限
+   约束，空态没必要占满一整块卡片。有译文后 .placeholder 被摘掉（见 popup.js 的
+   showResult），自动回到上下两行的常规排布。 */
+.output:has(.text.placeholder) { padding: 9px 12px; }
+.output:has(.text.placeholder) .label { display: inline; margin-right: 8px; }
+.output:has(.text.placeholder) .text { display: inline; margin: 0; font-size: 13px; }
+
 /* ── 设置区 ───────────────────────────────── */
-.settings { margin-top: 14px; padding: 2px 12px; border: 1px solid var(--line);
+/* 设置区是弹窗里最高的一块。行内距按 2~3px 收紧，用来适配 600px 上限；
+   三条副标题都是两行，留白不宜再抠。 */
+.settings { margin-top: 12px; padding: 2px 12px; border: 1px solid var(--line);
             border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-1); }
-.toggle-row { display: flex; align-items: center; gap: 10px; padding: 11px 0; }
+.toggle-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
 .toggle-row + .toggle-row { border-top: 1px solid var(--line); }
 .row-icon { width: 18px; height: 18px; flex: none; color: var(--brand); }
 .toggle-text { flex: 1; min-width: 0; }
 .toggle-text span { font-size: 13px; font-weight: 600; }
-.toggle-text small { display: block; margin-top: 2px; font-size: 11px; color: var(--text-2); line-height: 1.45; }
+.toggle-text small { display: block; margin-top: 1px; font-size: 11px; color: var(--text-2); line-height: 1.38; }
 
 .switch { position: relative; display: inline-block; width: 38px; height: 22px; flex: none; }
 .switch input {
@@ -228,8 +237,8 @@ footer {
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
   border-top: 1px solid var(--line);
   font-size: 12px;
   color: var(--text-2);

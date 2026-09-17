@@ -17,7 +17,7 @@ import {
 } from './lib/reader.js';
 import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js';
 import { findMainContentRoot, isNeverAutoSite, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
-import { chromeTranslatorAvailable, chromeTranslatorStatus } from './lib/chrome-translator.js';
+import { chromeTranslatorAvailable, chromeTranslatorStatus, chromeTranslatorLastError, markUserGesture, chromeTranslateFirst } from './lib/chrome-translator.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
 import { initI18n, t, uiLang } from './lib/i18n.js';
@@ -111,7 +111,46 @@ function escapeHtml(value) {
 
 /* ------------------------------------ 翻译 ----------------------------------- */
 
+/**
+ * Chrome 内建引擎的语言包下载状态 → 显示在悬浮按钮上。
+ * Chrome 自己也有下载提示，但它不说百分比，用户只能看着按钮干等。
+ */
+function onModelState({ phase, percent }) {
+  if (!hoverReader) return;
+  if (phase !== 'downloading') {
+    hoverReader.setBubbleDownload(null);   // 下好了或失败了，按钮交还给进度与译文
+    return;
+  }
+  const p = percent === null ? '' : `${percent}%`;
+  hoverReader.setBubbleDownload(t('bubble_model_downloading', { p }).trim());
+}
+
+/**
+ * 单个分段翻译：先试 Chrome 内建引擎（Google 端上模型），不行再走扩展侧的
+ * 本地语言包引擎。
+ *
+ * ★ 为什么必须在这里试，而不是在离屏文档里试：
+ *   语言包未就绪时，Chrome 要求调用方持有 transient user activation；离屏文档是
+ *   隐藏文档，拿不到手势，它调 create() 必然抛 NotAllowedError。而 content script
+ *   就跑在用户点击的那个页面里，手势是现成的。
+ *
+ * 自动翻译（没有手势）只会用「已经就绪」的模型，绝不静默下载，见 chromeTranslateFirst。
+ */
+async function tryChromeTranslation(text, source, target) {
+  const translated = await chromeTranslateFirst(text, source, target, { onModel: onModelState });
+  if (translated !== null) return translated;
+  // 出问题时不要静默：这次没走成内建引擎，原因先留在控制台，别让人靠猜
+  const last = chromeTranslatorLastError();
+  if (last) {
+    console.info('[翻译助手] Chrome 内建引擎本次未启用，改用本地语言包：', last?.message ?? last);
+  }
+  return null;
+}
+
 async function requestTranslation(text, source, target) {
+  const chromeText = await tryChromeTranslation(text, source, target);
+  if (chromeText !== null) return { text: chromeText, engine: 'chrome' };
+
   let response;
   try {
     response = await chrome.runtime.sendMessage({ type: MESSAGES.TRANSLATE, text, source, target });
@@ -319,6 +358,8 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     bar.hidden = false;
     barFill.style.width = '0%';
     status(message, t('translating_pack'));
+    // 同上：点击即同意下载 Chrome 内建引擎的语言包
+    markUserGesture();
     try {
       const outcome = await translate({
         text: draftArea.value,
@@ -574,6 +615,9 @@ const hoverReader = createHoverReader({
     mount();
     return shadow;
   },
+  // 「双语对照」/「译」都是用户的显式动作：记下来，好让 Chrome 内建引擎的
+  // 语言包下载能过它的手势检查（离屏文档没有手势，只有页面里的点击有）
+  onUserIntent: () => markUserGesture(),
   translateParagraph: text => translateParagraph(text).then(out => {
     hoverReader?.setBubbleEngine(out.engine);
     return out.text;
@@ -679,6 +723,8 @@ async function autoStart() {
   // Chrome 内建引擎模型尚未下载（downloadable）时：自动模式绝不静默触发下载，
   // 但按钮会明确告诉用户「点一下就开始下载并翻译」——用户的点击即同意。
   const chrome = await chromeEngineStatus(source, READ_TARGET_LANGUAGE);
+  // 「这次为什么没走谷歌模型」的唯一现场证据，排查先看这一行（available 才代表模型已落盘可用）
+  console.info('[翻译助手] Chrome 内建引擎可用性：', chrome.status, chrome);
   if (chrome.status === 'downloadable' || chrome.status === 'downloading') {
     hoverReader.setBubbleNotice({ text: t('bubble_google') });
     return;
