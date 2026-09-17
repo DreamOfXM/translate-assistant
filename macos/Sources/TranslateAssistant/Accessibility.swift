@@ -112,41 +112,36 @@ enum Accessibility {
         let ok: Bool
         let channel: WriteChannel?
         let error: String?
-        /// 某个通道报错但另一个通道成功了，把这个过程留下来给用户看
-        let note: String?
     }
 
     /// 把译文写回原输入框。
     ///
-    /// - Parameter preferring: 优先用哪条通道。翻译「选中文字」时要传 `.selectedText`，
+    /// - Parameter preferring: 用哪条通道。翻译「选中文字」时传 `.selectedText`，
     ///   否则整框覆写会把用户没选中的部分一起冲掉。
+    ///
+    /// 故意**不做通道回退**。两条通道的后果完全不同：整框覆写会抹掉草稿里其余内容，
+    /// 而往光标处写整段译文只会把草稿搞乱。对邮件、聊天这类地方，
+    /// 「失败并让用户手动复制」远好过「悄悄毁掉他写了一半的正文」。
     static func write(_ text: String, into snapshot: FieldSnapshot, preferring preferred: WriteChannel? = nil) -> WriteResult {
         guard isTrusted else {
-            return WriteResult(ok: false, channel: nil, error: "缺少辅助功能授权", note: nil)
+            return WriteResult(ok: false, channel: nil, error: "缺少辅助功能授权")
         }
 
-        let order: [WriteChannel] = preferred == .selectedText
-            ? [.selectedText, .value]
-            : [.value, .selectedText]
+        let channel = preferred ?? .value
+        let settable = channel == .value ? snapshot.valueSettable : snapshot.selectedTextSettable
 
-        var firstError: String?
-
-        for channel in order {
-            let settable = channel == .value ? snapshot.valueSettable : snapshot.selectedTextSettable
-            guard settable else {
-                firstError = (firstError.map { $0 + "；" } ?? "") + "\(channel.rawValue)不可写"
-                continue
-            }
-            let attribute = channel == .value ? kAXValueAttribute : kAXSelectedTextAttribute
-            if let error = set(snapshot.element, attribute, text as CFString) {
-                firstError = (firstError.map { $0 + "；" } ?? "") + "\(channel.rawValue)失败（\(error)）"
-                continue
-            }
-            let note = firstError.map { "已改用\(channel.rawValue)（\($0)）" }
-            return WriteResult(ok: true, channel: channel, error: nil, note: note)
+        guard settable else {
+            let hint = channel == .value
+                ? "可以先全选，再用「翻译选中文字」"
+                : "可以改用复制，或先全选再用「翻译当前输入框」"
+            return WriteResult(ok: false, channel: nil, error: "这个输入框不支持\(channel.rawValue)（\(hint)）")
         }
 
-        return WriteResult(ok: false, channel: nil, error: firstError ?? "这个输入框没有任何可写通道", note: nil)
+        let attribute = channel == .value ? kAXValueAttribute : kAXSelectedTextAttribute
+        if let error = set(snapshot.element, attribute, text as CFString) {
+            return WriteResult(ok: false, channel: nil, error: "\(channel.rawValue)失败（\(error)）")
+        }
+        return WriteResult(ok: true, channel: channel, error: nil)
     }
 
     // MARK: - 焦点元素
@@ -275,19 +270,37 @@ enum Accessibility {
 
         lines.append("目标进程：\(NSRunningApplication(processIdentifier: focused.pid)?.localizedName ?? "?")（pid \(focused.pid)）")
 
-        var names: CFArray?
-        guard AXUIElementCopyAttributeNames(focused.element, &names) == .success,
-              let list = names as? [String] else {
-            lines.append("读不到属性列表。")
-            return lines
+        // 层级能区分原生编辑器与内嵌网页编辑器：后者会出现 AXWebArea。
+        // 这两类控件的可写属性差别很大，排障时一眼就能看出来。
+        var chain: [String] = []
+        var node: AXUIElement? = focused.element
+        while let current = node, chain.count < 6 {
+            let role = string(current, kAXRoleAttribute) ?? "?"
+            if let subrole = string(current, kAXSubroleAttribute) {
+                chain.append("\(role)/\(subrole)")
+            } else {
+                chain.append(role)
+            }
+            node = element(current, kAXParentAttribute)
+        }
+        lines.append("焦点控件层级：\(chain.joined(separator: " ← "))")
+
+        if let value = string(focused.element, kAXValueAttribute) {
+            let flattened = value.replacingOccurrences(of: "\n", with: "⏎")
+            let clipped = flattened.count > 60 ? String(flattened.prefix(60)) + "…" : flattened
+            lines.append("当前值（\(value.count) 字）：\(clipped)")
+        } else {
+            lines.append("当前值：读不到 kAXValue")
         }
 
-        lines.append("焦点控件 role：\(string(focused.element, kAXRoleAttribute) ?? "-")")
-        lines.append("可写属性：")
-        for name in list.sorted() {
-            if isSettable(focused.element, name) {
-                lines.append("  - \(name) [可写]")
-            }
+        let valueSettable = isSettable(focused.element, kAXValueAttribute)
+        let selectionSettable = isSettable(focused.element, kAXSelectedTextAttribute)
+        lines.append("写回通道：整框覆写 \(valueSettable ? "可写" : "不可写")、替换选区 \(selectionSettable ? "可写" : "不可写")")
+
+        var names: CFArray?
+        if AXUIElementCopyAttributeNames(focused.element, &names) == .success, let list = names as? [String] {
+            let writable = list.filter { isSettable(focused.element, $0) }.sorted()
+            lines.append("全部可写属性：\(writable.isEmpty ? "无" : writable.joined(separator: ", "))")
         }
         return lines
     }
