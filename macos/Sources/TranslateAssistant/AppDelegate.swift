@@ -113,6 +113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !triggeredByUser && preferences.hidesWelcome { return }
 
         var lines = ["它没有窗口。入口在屏幕最顶部菜单栏最右边的「译」字，程序坞里也有一个图标。", ""]
+        lines.append("· 光标进输入框时，它的右上角会浮出一个「译」按钮，点一下即可——不用记热键")
         lines.append("· \(preferences.wholeFieldHotKey.description)：翻译光标所在的输入框")
         lines.append("· \(preferences.selectionHotKey.description)：翻译选中的文字")
         if !Accessibility.isTrusted {
