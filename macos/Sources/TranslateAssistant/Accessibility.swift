@@ -76,29 +76,97 @@ enum Accessibility {
     static func snapshot() -> FieldSnapshot? {
         guard isTrusted else { return nil }
         guard let focused = focusedElement() else { return nil }
+        guard !isOwnProcess(focused.pid) else { return nil }
 
         return withAccessibilityBoost(pid: focused.pid) {
-            let element = focused.element
-            guard !isOwnProcess(focused.pid) else { return nil }
-
-            let value = string(element, kAXValueAttribute)
-            let selected = string(element, kAXSelectedTextAttribute)
-
-            // 整框和选区都读不到，说明这个控件根本不暴露文本，没必要往下走
-            if value == nil && selected == nil { return nil }
-
-            return FieldSnapshot(
-                element: element,
-                pid: focused.pid,
-                appName: NSRunningApplication(processIdentifier: focused.pid)?.localizedName,
-                role: string(element, kAXRoleAttribute),
-                value: value,
-                selectedText: selected,
-                selectedRange: range(element, kAXSelectedTextRangeAttribute),
-                valueSettable: isSettable(element, kAXValueAttribute),
-                selectedTextSettable: isSettable(element, kAXSelectedTextAttribute)
-            )
+            makeSnapshot(element: focused.element, pid: focused.pid)
         }
+    }
+
+    /// 按「已知的那个控件」取快照。
+    ///
+    /// 输入框旁的小浮标点的是它旁边这个输入框，此时不该再去问系统焦点 ——
+    /// 用户的手可能已经点到别处了，再问一次就会翻译错对象。
+    static func snapshot(of geometry: FieldGeometry) -> FieldSnapshot? {
+        guard isTrusted else { return nil }
+        return withAccessibilityBoost(pid: geometry.pid) {
+            makeSnapshot(element: geometry.element, pid: geometry.pid)
+        }
+    }
+
+    private static func makeSnapshot(element: AXUIElement, pid: pid_t) -> FieldSnapshot? {
+        let value = string(element, kAXValueAttribute)
+        let selected = string(element, kAXSelectedTextAttribute)
+
+        // 整框和选区都读不到，说明这个控件根本不暴露文本，没必要往下走
+        if value == nil && selected == nil { return nil }
+
+        return FieldSnapshot(
+            element: element,
+            pid: pid,
+            appName: NSRunningApplication(processIdentifier: pid)?.localizedName,
+            role: string(element, kAXRoleAttribute),
+            value: value,
+            selectedText: selected,
+            selectedRange: range(element, kAXSelectedTextRangeAttribute),
+            valueSettable: isSettable(element, kAXValueAttribute),
+            selectedTextSettable: isSettable(element, kAXSelectedTextAttribute)
+        )
+    }
+
+    // MARK: - 焦点输入框的位置
+
+    /// 一个可输入的焦点控件的位置。
+    ///
+    /// 刻意**不带内容**：小浮标只需要知道按钮该画在哪，所以这条路径不去读
+    /// `kAXValue`。它会被高频调用（跟随窗口移动），顺便把用户的草稿读一遍
+    /// 既没必要也不礼貌。真正要用内容时走 `snapshot(of:)`。
+    struct FieldGeometry {
+        let element: AXUIElement
+        let pid: pid_t
+        let appName: String?
+        let role: String?
+        /// AX 坐标：原点在**主屏左上角**，与 AppKit 的左下原点相反，用之前要换算
+        let frame: CGRect
+
+        var isMultiline: Bool { role == (kAXTextAreaRole as String) }
+    }
+
+    /// 问某个进程「你内部焦点落在哪个可输入控件上」，只读它的位置。
+    ///
+    /// 这里**不打开 Chromium / Electron 的辅助功能增强开关**：那个开关是给
+    /// 「读内容」用的，而跟随光标是个持续动作，反复开关只会让对方的节点树闪断。
+    /// 原生暴露输入框的应用（备忘录、邮件客户端、iTerm 等）不需要它也能读到位置。
+    static func focusedFieldGeometry(inApp pid: pid_t) -> FieldGeometry? {
+        guard isTrusted else { return nil }
+        guard !isOwnProcess(pid) else { return nil }
+
+        let appElement = AXUIElementCreateApplication(pid)
+        // 跟随光标是高频动作，万一目标应用正忙，AX 调用会同步阻塞我们。
+        // 卡住自己的主线程比晚一点画按钮糟糕得多，所以把等待压到很短。
+        AXUIElementSetMessagingTimeout(appElement, 0.25)
+        guard let element = element(appElement, kAXFocusedUIElementAttribute) else { return nil }
+        guard let role = string(element, kAXRoleAttribute) else { return nil }
+        guard role == (kAXTextAreaRole as String) || role == (kAXTextFieldRole as String) else { return nil }
+
+        // 只读的文本框（网页正文之类）不该挂翻译按钮
+        let editable = isSettable(element, kAXValueAttribute) || isSettable(element, kAXSelectedTextAttribute)
+        guard editable else { return nil }
+
+        guard let origin = point(element, kAXPositionAttribute),
+              let size = size(element, kAXSizeAttribute) else { return nil }
+        let frame = CGRect(origin: origin, size: size)
+
+        // 路过的搜索框、单行小控件不挂，太吵
+        guard frame.width >= 120, frame.height >= 22 else { return nil }
+
+        return FieldGeometry(
+            element: element,
+            pid: pid,
+            appName: NSRunningApplication(processIdentifier: pid)?.localizedName,
+            role: role,
+            frame: frame
+        )
     }
 
     // MARK: - 写回
@@ -216,6 +284,48 @@ enum Accessibility {
         var cfRange = CFRange()
         guard AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cfRange, &cfRange) else { return nil }
         return NSRange(location: cfRange.location, length: cfRange.length)
+    }
+
+    static func point(_ element: AXUIElement, _ attribute: String) -> CGPoint? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var point = CGPoint.zero
+        guard AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cgPoint, &point) else { return nil }
+        return point
+    }
+
+    static func size(_ element: AXUIElement, _ attribute: String) -> CGSize? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+              let raw = value, CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var size = CGSize.zero
+        guard AXValueGetValue(unsafeBitCast(raw, to: AXValue.self), .cgSize, &size) else { return nil }
+        return size
+    }
+
+    // MARK: - 坐标换算
+
+    /// AX 坐标（主屏左上为原点）→ AppKit 坐标（主屏左下为原点）。
+    ///
+    /// 两套坐标系的 Y 是反的，直接把 AX 的 y 交给窗口会跑到屏幕外。
+    /// 多屏时以**最高那条边**为准：AX 的原点永远在主屏左上，而主屏在 AppKit 里
+    /// 未必是最高的那块（副屏可能挂在上方）。
+    static func appKitRect(fromAX rect: CGRect) -> CGRect {
+        let top = NSScreen.screens.map { $0.frame.maxY }.max() ?? 0
+        return CGRect(
+            x: rect.minX,
+            y: top - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+    }
+
+    /// 当前鼠标所在屏幕的可见区域，用来把浮层挤回屏幕内
+    static var activeVisibleFrame: CGRect {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        return screen?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
     }
 
     static func pid(of element: AXUIElement) -> pid_t? {

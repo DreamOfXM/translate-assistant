@@ -15,6 +15,15 @@ enum LaunchOptions {
     static var debug: Bool { ProcessInfo.processInfo.environment["LT_MAC_DEBUG"] != nil }
 }
 
+/// 调试输出。只有 `LT_MAC_DEBUG=1` 时才写 stderr，平时完全静默。
+///
+/// `NSLog` 在这儿不好用：它无条件往统一日志里灌，跟随光标那种每秒好几次的
+/// 调用会刷屏。用 stderr 是因为从终端直接跑二进制时正好能看见。
+func ltTrace(_ message: @autoclosure () -> String) {
+    guard LaunchOptions.debug else { return }
+    FileHandle.standardError.write(Data(("lt: " + message() + "\n").utf8))
+}
+
 /// 应用用到的几个路径。开发态（swift run）和打包态（.app）都要能找到引擎资源，
 /// 所以这里不写死，按优先级探测。
 enum Paths {

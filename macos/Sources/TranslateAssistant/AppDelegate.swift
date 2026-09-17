@@ -28,6 +28,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentMode: Mode = .wholeField
     private var trustTimer: Timer?
 
+    /// 输入框旁边那个常驻小按钮，以及决定它在哪出现的跟随器
+    private let pill = InlinePill()
+    private let focusTracker = FocusTracker()
+    /// 浮标当前盯着的输入框，点下去时按它取内容（而不是再问一次系统焦点）
+    private var pillTarget: Accessibility.FieldGeometry?
+
     // MARK: - 启动
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -58,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         rebuildMenu()
         refreshMenuLater()
         startTrustWatch()
+        startInlinePill()
 
         // 没有窗口的程序，启动完屏幕上什么都不会多出来 —— 第一件事就是说明自己是谁、
         // 入口在哪。未授权时那个弹窗里直接给「去授权」，不再另外弹系统对话框，
@@ -76,6 +83,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         trustTimer?.invalidate()
+        focusTracker.stop()
+        pill.hide()
         engine.shutdown()
         server.stop()
     }
@@ -172,7 +181,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - 主流程
 
-    private func begin(mode: Mode) {
+    /// 本次翻译对应输入框的位置，供「重新翻译」沿用同样的摆放
+    private var currentAnchor: CGRect?
+
+    private func begin(mode: Mode, anchor: Accessibility.FieldGeometry? = nil) {
         guard ensureTrusted() else { return }
 
         if let engineError {
@@ -180,7 +192,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard let snapshot = Accessibility.snapshot() else {
+        // 从浮标点进来时翻的就是浮标旁边那个输入框。这里不再问一次系统焦点 ——
+        // 用户的手可能已经点到别处，再问就该翻错对象了。
+        let snapshot = anchor.map { Accessibility.snapshot(of: $0) } ?? Accessibility.snapshot()
+        guard let snapshot else {
             hud.notice("没读到输入框。先把光标点进某个输入框，或改用「翻译选中文字」。")
             return
         }
@@ -200,10 +215,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         current = snapshot
         currentMode = mode
+        currentAnchor = anchor?.frame
 
         let appName = snapshot.appName ?? "未知应用"
         let channel = snapshot.writableChannel ?? "只读"
-        hud.show(original: text, status: "\(appName) · \(channel) · 翻译中…")
+        hud.show(original: text, status: "\(appName) · \(channel) · 翻译中…", near: currentAnchor)
 
         Task { await translate(text) }
     }
@@ -218,17 +234,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let appName = current?.appName ?? "未知应用"
             hud.update(
                 translated: result.text,
-                status: "\(appName) · \(result.source.uppercased()) → \(result.target.uppercased())"
+                status: "\(appName) · \(result.source.uppercased()) → \(result.target.uppercased())",
+                warning: quotedHistoryWarning(in: text)
             )
         } catch {
             hud.fail("翻译失败：\(error.localizedDescription)")
         }
     }
 
+    /// 邮件、论坛的回复草稿里常带一长段引用历史。整框译完再「填入」会把引用一起换掉，
+    /// 而用户多半只想译自己写的那几句 —— 所以先提醒，不拦着。
+    private func quotedHistoryWarning(in text: String) -> String {
+        let lowered = text.lowercased()
+        let quotedLines = text.split(separator: "\n").filter {
+            $0.trimmingCharacters(in: .whitespaces).hasPrefix(">")
+        }.count
+
+        let hasBanner = lowered.contains("---- replied message ----")
+            || lowered.contains("原始邮件")
+            || lowered.contains("wrote:")
+            || ((lowered.contains("写道:") || lowered.contains("写道：")))
+
+        guard hasBanner || quotedLines >= 3 else { return "" }
+
+        var parts = ["这段草稿里有引用历史"]
+        if hasBanner { parts.append("含引用分隔标记") }
+        if quotedLines > 0 { parts.append("> 引用行 \(quotedLines) 行") }
+
+        return "⚠︎ \(parts.joined(separator: "，"))。点「填入」是整框替换，会把引用一起换掉；"
+            + "只想译自己写的那几句，先选中它们再按 \(preferences.selectionHotKey.description)。"
+    }
+
     private func retry() {
         guard let snapshot = current else { return }
         let text = currentMode == .selection ? (snapshot.selectedText ?? "") : snapshot.text
-        hud.show(original: text, status: "重新翻译…")
+        hud.show(original: text, status: "重新翻译…", near: currentAnchor)
         Task { await translate(text) }
     }
 
@@ -278,6 +318,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    // MARK: - 输入框旁的常驻浮标
+
+    /// 打开「光标一进输入框，旁边就出现一个小『译』按钮」这条路。
+    ///
+    /// 重复调用是安全的：菜单里开关时会再走一次，所以要先把上一轮停干净。
+    private func startInlinePill() {
+        focusTracker.stop()
+        focusTracker.onChange = { [weak self] geometry in
+            self?.syncPill(with: geometry)
+        }
+        pill.onClick = { [weak self] in self?.pillClicked() }
+        ltTrace("startInlinePill：开关=\(preferences.inlinePill)")
+        guard preferences.inlinePill else { return }
+        focusTracker.start()
+    }
+
+    /// 跟随器报了变化：有输入框就把按钮挪过去，没有（或用户关了这功能）就收起来。
+    private func syncPill(with geometry: Accessibility.FieldGeometry?) {
+        ltTrace("syncPill：geometry=\(geometry == nil ? "nil" : "\(geometry!.frame)")")
+        guard preferences.inlinePill, let geometry else {
+            pillTarget = nil
+            focusTracker.quickPoll = false
+            pill.hide()
+            return
+        }
+
+        pillTarget = geometry
+        focusTracker.quickPoll = true
+        if pill.isVisible {
+            pill.move(to: geometry.frame)
+        } else {
+            pill.show(at: geometry.frame)
+        }
+        ltTrace("syncPill：show/move 之后 isVisible=\(pill.isVisible)")
+    }
+
+    /// 点了浮标：翻它旁边那个输入框。按钮故意留着不藏 —— 结果浮层关掉后还能再点一次。
+    private func pillClicked() {
+        // 这条路是唯一会主动读用户草稿的入口，值班时留个痕，出了怪事能对上时间线
+        ltTrace("pillClicked：target=\(pillTarget == nil ? "nil" : "\(pillTarget!.frame)")")
+        guard let target = pillTarget else { return }
+        begin(mode: .wholeField, anchor: target)
+    }
+
+    @objc private func menuTogglePill() {
+        preferences.inlinePill.toggle()
+        rebuildMenu()
+        startInlinePill()
+    }
+
     // MARK: - 菜单
 
     private func refreshMenuLater() {
@@ -296,7 +386,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 timer.invalidate()
                 self.trustTimer = nil
                 self.rebuildMenu()
-                self.hud.notice("辅助功能授权已生效。点进任意输入框，按 \(self.preferences.wholeFieldHotKey.description) 试试。")
+                // 授权之前 startInlinePill 里的 start() 会直接返回，这里补启动一次
+                self.startInlinePill()
+                self.hud.notice("辅助功能授权已生效。点进任意输入框，按 \(self.preferences.wholeFieldHotKey.description) 试试，或直接点输入框右上角的「译」按钮。")
             }
         }
     }
@@ -347,6 +439,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         dock.target = self
         menu.addItem(dock)
+
+        let pillItem = NSMenuItem(
+            title: preferences.inlinePill ? "输入框旁显示「译」按钮：开" : "输入框旁显示「译」按钮：关",
+            action: #selector(menuTogglePill),
+            keyEquivalent: ""
+        )
+        pillItem.target = self
+        pillItem.isEnabled = Accessibility.isTrusted
+        menu.addItem(pillItem)
 
         let engineItem = NSMenuItem(
             title: engineError.map { "引擎：不可用 · \($0)" } ?? "引擎：本地离线（Bergamot）",

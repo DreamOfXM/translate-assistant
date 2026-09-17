@@ -102,6 +102,7 @@ final class Preferences {
         static let maxCharacters = "maxCharacters"
         static let showsInDock = "showsInDock"
         static let hidesWelcome = "hidesWelcome"
+        static let inlinePill = "inlinePill"
     }
 
     /// 输入框内容超过这个长度就拒绝翻译：草稿里整篇贴进来的情况很常见，
@@ -132,6 +133,15 @@ final class Preferences {
     var showsInDock: Bool {
         get { defaults.object(forKey: Key.showsInDock) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Key.showsInDock) }
+    }
+
+    /// 输入框旁边要不要常驻一个小「译」按钮。
+    ///
+    /// **默认开**：热键是「知道有这个功能之后才用得上」的入口，浮标是「看见就知道能点」
+    /// 的入口，后者对第一次用的人友好得多。嫌它在每个输入框都出现可以在菜单里关掉。
+    var inlinePill: Bool {
+        get { defaults.object(forKey: Key.inlinePill) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.inlinePill) }
     }
 
     /// 用户勾过「启动时不再提示」之后，启动就不再弹说明；

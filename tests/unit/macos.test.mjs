@@ -178,3 +178,77 @@ test('入口不可见有兜底：再开一次要有反馈，并且能切到程�
   assert.match(delegate, /setActivationPolicy/, '菜单栏挤掉状态项时要能切到程序坞');
   assert.match(read('macos/Sources/TranslateAssistant/Preferences.swift'), /showsInDock/);
 });
+
+test('宿主页面引入的引擎模块都在构建脚本的拷贝清单里', () => {
+  // 这条盯的是「改了引擎、App 里还是旧的」这类问题：macos/web/lib 在源码树里
+  // 并不存在，全靠 assembleWeb 从 extension/lib 拷进去。导入清单和拷贝清单一旦
+  // 不一致，App 打包后在页面上是个 404，而源码和单测都看不出任何异常。
+  const copied = new Set(copiedModules());
+  const html = read('macos/web/engine.html');
+  const imported = [...html.matchAll(/from\s+'\/lib\/([^']+)'/g)].map(match => match[1]);
+
+  assert.ok(imported.length > 0, 'engine.html 应当从 /lib/ 引入引擎模块');
+  for (const name of imported) {
+    assert.ok(copied.has(name), `engine.html 引入了 /lib/${name}，但构建脚本不会拷贝它`);
+  }
+});
+
+test('输入框旁的浮标不抢焦点', () => {
+  // 浮标是盖在对方输入框上的我方面板。一旦它把前台应用切走，原来的输入框就
+  // 不再是焦点，点完按钮反而找不到回填的落脚点 —— 所以「不激活」是硬约束。
+  const pill = read('macos/Sources/TranslateAssistant/InlinePill.swift');
+  assert.match(pill, /\.nonactivatingPanel/);
+  assert.match(pill, /override var canBecomeKey: Bool \{ false \}/);
+  assert.match(pill, /orderFrontRegardless/);
+  assert.doesNotMatch(pill, /makeKeyAndOrderFront/, '显示浮标不能顺带抢走键盘焦点');
+  assert.doesNotMatch(pill, /NSApp\.activate|\.activate\(/, '浮标不该激活本 App');
+});
+
+test('浮标点击用的是它旁边那个输入框，不是「此刻的系统焦点」', () => {
+  // 用户点浮标时手已经离开键盘，若再去问一次系统焦点就会翻错对象。
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  assert.match(delegate, /Accessibility\.snapshot\(of: /, '应当按浮标记住的控件取内容');
+  assert.match(delegate, /private var pillTarget/);
+});
+
+test('跟随光标只读坐标，不读草稿内容', () => {
+  // 定位路径每 0.25 秒跑一次，顺手把用户的草稿读一遍既没必要也不礼貌。
+  // 允许查「这个控件能不能写」（那是判断能不能输入），不允许把内容取出来。
+  const source = readFileSync(join(sourcesRoot, 'Accessibility.swift'), 'utf8');
+  const start = source.indexOf('static func focusedFieldGeometry');
+  const end = source.indexOf('appKitRect(fromAX', start);
+  assert.ok(start > 0 && end > start, '找不到 focusedFieldGeometry');
+
+  const geometryPath = source.slice(start, end);
+  assert.doesNotMatch(geometryPath, /string\(element, kAXValueAttribute\)/);
+  assert.doesNotMatch(geometryPath, /string\(element, kAXSelectedTextAttribute\)/);
+  assert.match(source, /AXUIElementSetMessagingTimeout/, '反向查询要设超时，否则目标应用一忙就把我们的主线程拖住');
+});
+
+test('跟随光标既有通知也有轮询兜底', () => {
+  // 有的应用不发焦点变化通知；而窗口被拖动、页面被滚动时焦点并没有「变化」，
+  // 位置却变了，那种情况只能靠重新读一次坐标发现 —— 两条都要在。
+  const tracker = read('macos/Sources/TranslateAssistant/FocusTracker.swift');
+  assert.match(tracker, /kAXFocusedUIElementChangedNotification/);
+  assert.match(tracker, /didActivateApplicationNotification/, '前台换人时要换监听对象');
+  assert.match(tracker, /Timer\.scheduledTimer/);
+});
+
+test('结果浮层贴着输入框摆，且引用历史会先提醒', () => {
+  const hud = read('macos/Sources/TranslateAssistant/HUDWindow.swift');
+  // 邮件回复框常常占掉大半个屏幕，只贴着「下方」摆是放不下的
+  for (const direction of ['下方', '上方', '右侧', '左侧']) {
+    assert.ok(hud.includes(direction), `贴边摆放应当考虑${direction}`);
+  }
+
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  assert.match(delegate, /quotedHistoryWarning/, '草稿含引用历史时要提醒「填入会整框替换」');
+});
+
+test('浮标有开关，能在菜单里关掉', () => {
+  assert.match(read('macos/Sources/TranslateAssistant/Preferences.swift'), /var inlinePill: Bool/);
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  assert.match(delegate, /menuTogglePill/);
+  // 默认必须是开的：热键是「知道有这功能才用得上」的入口，浮标是看得见的入口
+  assert.match(read('macos/Sources/TranslateAssistant/Preferences.swift'), /Key\.inlinePill\) as\? Bool \?\? true/);
+});

@@ -4,6 +4,8 @@
 不只浏览器 —— 备忘录、邮件客户端、聊天工具、Safari 和 Chrome 里的网页，
 走的都是同一条路。
 
+不想记热键也行：光标进输入框，它的右上角就会浮出一个「译」按钮，点一下即可。
+
 ## 它是怎么做到的
 
 浏览器扩展只能看见自己注入的那个网页。macOS 提供了一个系统级接口——
@@ -13,8 +15,10 @@
 - 读：拿焦点控件的文本（`kAXValueAttribute`），顺带看有没有选区。
 - 翻：调用与扩展**完全相同**的那套离线引擎（Bergamot WASM + Mozilla 语言包），
   没有网络请求，没有 API Key。
-- 写：整框覆写（`kAXValueAttribute`）优先；不可写时退回替换选区
-  （`kAXSelectedTextAttribute`）。
+- 写：按用途固定走一条通道 ——「翻译当前输入框」整框覆写（`kAXValueAttribute`），
+  「翻译选中文字」只替换选区（`kAXSelectedTextAttribute`）。**两条通道之间不做回退**：
+  它们的后果差得太远（覆写全文 vs 只换选中），静默降级会把用户写了一半的正文冲掉。
+  写不进去就报错并提示该改用哪条路，不赌。
 
 代价是必须拿到「辅助功能」授权——这是 macOS 对「读写别的 App 内容」这类能力的
 统一管控，任何工具都绕不过去。
@@ -52,6 +56,19 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 
 ## 用法
 
+### 输入框旁的「译」按钮
+
+光标一进可输入的文本框（邮件回复框、备忘录正文、聊天输入框……），它的**右上角**
+就会出现一个蓝色的小「译」按钮。点它就把这个输入框翻出来，结果浮层贴在输入框旁边。
+
+- 不用记热键——看见就知道能点。这是给第一次用的人准备的入口。
+- 按钮是**盖在**输入框上的我方浮层，不是注进对方界面的控件：对方应用和它的窗口
+  都不会被改动。（macOS 不允许一个进程往另一个进程的视图树里塞控件。）
+- 点按钮**不会**切走焦点，原来的输入框仍是焦点，所以「填入」有落脚点。
+- 不想要它：菜单 →「输入框旁显示「译」按钮：关」。
+
+### 热键
+
 | 操作 | 默认热键 | 说明 |
 | --- | --- | --- |
 | 翻译当前输入框 | `⌃⌥T` | 读整个输入框 → 翻译 → 浮层确认 → 填回 |
@@ -67,6 +84,13 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 浮层刻意做成**不抢焦点**的（`nonactivatingPanel`），所以你可以一边看着原文
 一边决定要不要填回去。
 
+浮层的位置会贴着输入框找空位（下 → 上 → 右 → 左）。邮件回复框那种占掉大半个屏幕的
+情况，只有左右还放得下。
+
+> **草稿里带着引用历史时会先提醒。** 邮件、论坛的回复草稿下面常跟着
+> `---- Replied Message ----` 之类的引用块。整框翻译会把引用一起翻掉、再整框覆写，
+> 所以这种情况下浮层上会多一条橙色提示，建议先选中自己写的那几句再按 `⌃⌥Y`。
+
 ## 覆盖范围与盲区
 
 覆盖：所有把焦点信息暴露给系统的输入框——原生 App、Electron 应用、浏览器网页。
@@ -80,6 +104,15 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 - **Electron 应用需要唤醒**：这类应用平时不构建无障碍节点树（省电）。App 在读取
   前会临时打开 `AXManualAccessibility` / `AXEnhancedUserInterface`，读完复原。
 - **个别 Electron 应用读不到内容** —— 用菜单里的「自检」把报告贴出来可以定位。
+
+关于输入框旁的小「译」按钮，另有两件事要知道：
+
+- **它是浮层，不是对方界面的一部分。** 对方窗口一移动、页面一滚动，位置就得靠重新
+  读一次坐标跟上去，跟得不够快时会看到它「跳」一下。这是这类工具的通病
+  （PopClip、Grammarly 桌面版是同一套办法）。
+- **不暴露无障碍节点的应用不会出现按钮。** 浮标走的是「只读坐标」的轻量路径，
+  刻意不打开 Chromium / Electron 的辅助功能增强开关——跟随光标是个持续动作，
+  反复开关只会让对方的节点树闪断。这类应用仍然可以用热键，热键那条路会临时打开它。
 
 另外，输入框内容超过上限（默认 2000 字符）会被拒绝：整篇文档贴进来送模型只会卡住。
 
@@ -160,11 +193,13 @@ macos/
 ├── Resources/Info.plist           LSUIElement：菜单栏应用
 ├── Sources/TranslateAssistant/
 │   ├── Entry.swift                入口 + --serve / --check-engine / --self-check
-│   ├── AppDelegate.swift          菜单栏、热键注册、翻译流程
-│   ├── Accessibility.swift        AX 读写层（读输入框 / 回填 / 授权）
+│   ├── AppDelegate.swift          菜单栏、热键注册、翻译流程、浮标接线
+│   ├── Accessibility.swift        AX 读写层（读输入框 / 回填 / 授权 / 焦点输入框坐标）
 │   ├── EngineServer.swift         回环 HTTP 服务 + 语言包代理与磁盘缓存
 │   ├── HTTPServer.swift           极简 HTTP 传输层
 │   ├── EngineBridge.swift         WKWebView ↔ Swift 的 async 桥
+│   ├── FocusTracker.swift         跟着光标走：焦点进了哪个输入框、它挪到哪去了
+│   ├── InlinePill.swift           输入框右上角那个常驻的「译」按钮（不抢焦点的浮层）
 │   ├── HUDWindow.swift            不抢焦点的结果浮层
 │   ├── HotKeyCenter.swift         Carbon 全局热键
 │   ├── Preferences.swift          设置与语言方向
