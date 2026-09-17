@@ -39,7 +39,7 @@ const KEYS = [
   'bubble_idle', 'bubble_title', 'bubble_progress', 'bubble_done',
   'bubble_nothing', 'bubble_tool', 'bubble_zh', 'bubble_pack',
   'bubble_google', 'bubble_model_downloading', 'bubble_site',
-  'para_translating', 'para_copy', 'para_copied', 'para_hide', 'para_failed',
+  'para_translating', 'para_copy', 'para_copied', 'para_hide', 'para_failed', 'close',
   'hover_pill', 'hover_pill_title', 'menu_translate_selection',
   'error_no_response', 'engine_chrome_label', 'engine_local_label',
   'error_updated', 'error_connect', 'error_no_response_reload'

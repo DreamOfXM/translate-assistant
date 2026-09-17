@@ -195,7 +195,7 @@ function openResultCard({ text, rect }) {
         <p class="lt-title">${t('sel_title')}</p>
         <p class="lt-sub">${t('sel_sub')}</p>
       </div>
-      <button class="lt-close" type="button" title="关闭">×</button>
+      <button class="lt-close" type="button" title="${t('close')}">×</button>
     </div>
     <label class="lt-field">${t('field_source')}
       <textarea class="lt-original" readonly rows="3">${escapeHtml(text)}</textarea>
@@ -289,7 +289,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
         <p class="lt-title">${t('reply_title')}</p>
         <p class="lt-sub">${t('reply_sub')}</p>
       </div>
-      <button class="lt-close" type="button" title="关闭">×</button>
+      <button class="lt-close" type="button" title="${t('close')}">×</button>
     </div>
     <p class="lt-note">${t('reply_note')}</p>
     <label class="lt-field">${t('draft')}
@@ -422,7 +422,7 @@ function openInlineTranslation({ input }) {
   card.innerHTML = `
     <div class="lt-inline-head">
       <span class="lt-inline-lang"></span>
-      <button class="lt-close" type="button" title="关闭">×</button>
+      <button class="lt-close" type="button" title="${t('close')}">×</button>
     </div>
     <p class="lt-text lt-result placeholder">${t('para_translating')}</p>
     <div class="lt-bar" hidden><i></i></div>
