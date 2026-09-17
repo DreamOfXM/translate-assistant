@@ -119,16 +119,50 @@ function resolveExecutable(chromium) {
   return found;
 }
 
+/* 网页版邮箱的形状复刻：写信页本身在一个 iframe 里，正文编辑器再套一层。
+   QQ 邮箱就是这个形状（#mainFrame → iframe.qmEditorIfrmEditArea），
+   用来验证「翻译回复」能挂进子框架，而不是只听顶层文档的动静。 */
+const MAIL_BODY = `<!doctype html><html lang="en"><body style="margin:0">
+<div id="mail-editor" contenteditable="true"
+     style="min-height:120px;padding:8px;font:14px/1.6 sans-serif">Thanks for the quick turnaround on the deck.</div>
+</body></html>`;
+
+const MAIL_FRAME = `<!doctype html><html lang="en"><body style="margin:0">
+<iframe id="mail-frame" src="/mail-body.html" style="width:640px;height:200px;border:0"></iframe>
+</body></html>`;
+
+/* 另一类编辑器：about:blank 上 document.write 出来（对应清单里的 match_about_blank） */
+const MAIL_BLANK = `<!doctype html><html lang="en"><body style="margin:0">
+<iframe id="blank-frame" style="width:640px;height:200px;border:0"></iframe>
+<script>
+  const frame = document.getElementById('blank-frame');
+  frame.contentDocument.open();
+  frame.contentDocument.write('<div id="blank-editor" contenteditable="true" style="min-height:120px;padding:8px;font:14px/1.6 sans-serif">Please confirm the schedule.</div>');
+  frame.contentDocument.close();
+</script>
+</body></html>`;
+
 function serveTestPage() {
-  const html = readFileSync(testPage);
-  const server = createServer((_request, response) => {
+  const routes = new Map([
+    ['/', readFileSync(testPage)],
+    ['/mail-frame.html', Buffer.from(MAIL_FRAME)],
+    ['/mail-body.html', Buffer.from(MAIL_BODY)],
+    ['/mail-blank.html', Buffer.from(MAIL_BLANK)]
+  ]);
+  const server = createServer((request, response) => {
+    const { pathname } = new URL(request.url, 'http://127.0.0.1');
+    const html = routes.get(pathname);
+    if (!html) {
+      response.writeHead(404).end('not found');
+      return;
+    }
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     response.end(html);
   });
   return new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => {
       const { port } = server.address();
-      resolve({ server, url: `http://127.0.0.1:${port}/` });
+      resolve({ server, origin: `http://127.0.0.1:${port}`, url: `http://127.0.0.1:${port}/` });
     });
   });
 }
@@ -180,7 +214,7 @@ if (!existsSync(join(extensionPath, 'manifest.json'))) {
 }
 
 const chromium = await loadChromium();
-const { server, url } = await serveTestPage();
+const { server, url, origin } = await serveTestPage();
 
 const executablePath = resolveExecutable(chromium);
 // 默认有头（老 headless 不支持扩展）；新版 headless 已经支持，无人值守时用
@@ -291,10 +325,19 @@ try {
     await check('popup：英→中翻译闭环', async () => {
       await extensionPage.fill('#source', 'Local machine translation runs entirely on your device.');
       await extensionPage.click('#run');
-      await extensionPage.waitForFunction(() => {
-        const node = document.getElementById('result');
-        return node && !node.classList.contains('placeholder') && node.textContent.trim().length > 0;
-      }, null, { timeout: 170000 });
+      try {
+        await extensionPage.waitForFunction(() => {
+          const node = document.getElementById('result');
+          return node && !node.classList.contains('placeholder') && node.textContent.trim().length > 0;
+        }, null, { timeout: 170000 });
+      } catch {
+        // 超时只能说「没出译文」，把界面上的说法带出来才知道卡在哪一步
+        const [result, note] = await extensionPage.evaluate(() => [
+          document.getElementById('result')?.textContent?.trim() ?? '',
+          document.getElementById('status')?.textContent?.trim() ?? ''
+        ]);
+        throw new Error(`译文框超时：result=「${result}」status=「${note}」`);
+      }
       const text = (await extensionPage.textContent('#result')).trim();
       if (!CJK.test(text)) throw new Error(`译文不像中文：${text}`);
       return text.slice(0, 40);
@@ -308,6 +351,12 @@ try {
   watchPage(page, 'test-page');
   await page.goto(url);
   await page.waitForSelector('#english-paragraph');
+
+  /** 页面里各译文节点的当前文案；超时时用来说明「没翻出来」还是「压根没开始」 */
+  const paragraphState = () => page.evaluate(() =>
+    [...document.querySelectorAll('.lt-para-host')].map(node =>
+      node.shadowRoot?.querySelector('.lt-para-text')?.textContent?.trim().slice(0, 24) ?? '(空)'
+    ));
 
   if (canTranslate) {
     await check('页面：选中文本翻译', async () => {
@@ -383,13 +432,23 @@ try {
         root?.querySelector('.lt-bubble')?.click();
       });
       // 测试页有 3 个非中文块级段落（英/日/长文），等它们全部出现真实译文
-      await page.waitForFunction(() => {
-        const hosts = [...document.querySelectorAll('.lt-para-host')];
-        return hosts.length >= 3 && hosts.every(node => {
-          const text = node.shadowRoot?.querySelector('.lt-para-text')?.textContent?.trim() ?? '';
-          return text.length > 0 && text !== '翻译中…';
+      try {
+        await page.waitForFunction(() => {
+          const hosts = [...document.querySelectorAll('.lt-para-host')];
+          return hosts.length >= 3 && hosts.every(node => {
+            const text = node.shadowRoot?.querySelector('.lt-para-text')?.textContent?.trim() ?? '';
+            return text.length > 0 && text !== '翻译中…';
+          });
+        }, null, { timeout: 240000 });
+      } catch {
+        // 悬浮按钮上写着「为什么不翻」（本来就是中文页 / 缺语言包 / 内建模型待下载），
+        // 这是判断「功能坏了」还是「页面没有可翻的东西」的关键证据
+        const label = await page.evaluate(() => {
+          const root = document.getElementById('local-translator-root')?.shadowRoot;
+          return root?.querySelector('.lt-bubble')?.textContent?.trim() ?? '(没有悬浮按钮)';
         });
-      }, null, { timeout: 240000 });
+        throw new Error(`段落译文没齐：${JSON.stringify(await paragraphState())} 按钮=「${label}」`);
+      }
       const label = await page.evaluate(() => {
         const root = document.getElementById('local-translator-root')?.shadowRoot;
         return root?.querySelector('.lt-bubble')?.textContent?.trim() ?? '';
@@ -401,13 +460,17 @@ try {
     await check('页面：打开网页自动出译文（全程不点任何按钮）', async () => {
       await extensionPage.evaluate(() => chrome.storage.local.set({ autoBilingual: true }));
       await page.reload();
-      await page.waitForFunction(() => {
-        const hosts = [...document.querySelectorAll('.lt-para-host')];
-        return hosts.length >= 3 && hosts.every(node => {
-          const text = node.shadowRoot?.querySelector('.lt-para-text')?.textContent?.trim() ?? '';
-          return text.length > 0 && text !== '翻译中…';
-        });
-      }, null, { timeout: 240000 });
+      try {
+        await page.waitForFunction(() => {
+          const hosts = [...document.querySelectorAll('.lt-para-host')];
+          return hosts.length >= 3 && hosts.every(node => {
+            const text = node.shadowRoot?.querySelector('.lt-para-text')?.textContent?.trim() ?? '';
+            return text.length > 0 && text !== '翻译中…';
+          });
+        }, null, { timeout: 240000 });
+      } catch {
+        throw new Error(`重新打开后没有自动出译文：${JSON.stringify(await paragraphState())}`);
+      }
       const count = await page.evaluate(() => document.querySelectorAll('.lt-para-host').length);
       return `自动译出 ${count} 段`;
     }, 250000);
@@ -424,7 +487,138 @@ try {
     return label;
   }, 30000);
 
-  /* 6. 控制台干净（CSP / 模块 / WASM 这三类的报错都在这里暴露） */
+  /* 5.1 三种可编辑元素都要能挂上入口。
+     富文本（contenteditable）这条尤其要紧：网页版邮箱、工单系统、论坛的正文框
+     几乎都是这种，靠 textarea 一条用例保不住。
+
+     注意：上一个输入框失焦后按钮要 300ms 才摘掉，这段窗口里 DOM 上会同时存在
+     两个按钮，所以必须等它稳定到只剩一个再断言 —— 否则会看到过期的那个。 */
+  const focusEditable = async selector => {
+    await page.click(selector);
+    await page.waitForSelector('.lt-float', { timeout: 10000 });
+    for (let i = 0; i < 20; i += 1) {
+      if ((await page.locator('.lt-float').count()) <= 1) break;
+      await page.waitForTimeout(100);
+    }
+    const button = page.locator('.lt-float');
+    if ((await button.count()) !== 1) {
+      throw new Error(`焦点稳定后应当只剩一个回复入口，实际 ${await button.count()} 个`);
+    }
+    return button;
+  };
+
+  await check('页面：单行输入框也能挂上回复入口', async () => {
+    const button = await focusEditable('#title');
+    return (await button.textContent()).trim();
+  }, 30000);
+
+  await check('页面：富文本编辑器（contenteditable）也能挂上回复入口', async () => {
+    const button = await focusEditable('#editor');
+    // 顺带确认按钮贴在编辑器旁边，而不是留在上一个输入框那边
+    const box = await page.locator('#editor').boundingBox();
+    const spot = await button.boundingBox();
+    if (!box || !spot) throw new Error('拿不到坐标');
+    if (Math.abs(spot.y - box.y) > 80) {
+      throw new Error(`按钮没跟着富文本框走：editor.y=${box.y} button.y=${spot.y}`);
+    }
+    return (await button.textContent()).trim();
+  }, 30000);
+
+  /* 5.2 密码框不能挂入口：往密码框里写译文毫无意义，还容易踩到敏感字段 */
+  await check('页面：密码框不挂回复入口', async () => {
+    await page.click('#secret');
+    await page.waitForTimeout(900); // 等最后一个按钮自行摘掉
+    const count = await page.locator('.lt-float').count();
+    if (count !== 0) throw new Error(`密码框上不该出现回复入口，却找到 ${count} 个`);
+    return '密码框没有入口';
+  }, 30000);
+
+  /* 5.3 富文本写信框的完整闭环：写草稿 → 出译文 → 确认填入。
+     网页版邮箱、工单系统、论坛的回复框几乎都是 contenteditable，
+     「能不能在邮件里回信」实际就取决于这一段跑不跑得通。 */
+  if (canTranslate) {
+    await check('页面：富文本框里的回复闭环（草稿 → 译文 → 确认填入）', async () => {
+      const draft = 'The gap is what I work on — visibility for projects that deserve it.';
+      await page.fill('#editor', draft);
+      await page.click('#editor');
+
+      const button = await focusEditable('#editor');
+      await button.click();
+
+      // 已有草稿时走的是「就地出译文条」，不是完整面板
+      await page.waitForSelector('.lt-card.lt-inline', { timeout: 15000 });
+      await page.waitForSelector('.lt-card.lt-inline .lt-result:not(.placeholder)', { timeout: 60000 });
+      const translated = (await page.textContent('.lt-card.lt-inline .lt-result')).trim();
+      if (!translated || translated === draft) throw new Error(`译文没出来：${translated}`);
+      if (!/[\u4e00-\u9fff]/.test(translated)) throw new Error(`译文里没有中文：${translated}`);
+
+      // 只有点了「填入」才会写回输入框
+      await page.click('.lt-fill');
+      await page.waitForFunction(
+        expected => document.getElementById('editor').innerText.trim() === expected,
+        translated,
+        { timeout: 15000 }
+      );
+      const filled = await page.evaluate(() => document.getElementById('editor').innerText.trim());
+      if (filled !== translated) throw new Error(`填入结果不符：${filled}`);
+      return `「${draft.slice(0, 24)}…」→「${translated.slice(0, 24)}…」`;
+    }, 120000);
+  } else {
+    skip('页面：富文本框里的回复闭环（草稿 → 译文 → 确认填入）', '未安装 en-zh');
+  }
+
+  /* 6. 子框架（iframe）里的输入框。
+     网页版邮箱、论坛、工单系统的正文框几乎都在 iframe 里，QQ 邮箱还是 mainFrame
+     里再套一层编辑器 iframe。这正是「能不能在网页里回邮件」的分水岭：
+     清单里没有 all_frames / match_about_blank，焦点事件就不会出现在扩展看得见的文档里。 */
+  await extensionPage.evaluate(() => chrome.storage.local.set({
+    pageBilingual: true, autoBilingual: false, hoverTranslate: false
+  }));
+
+  await check('子框架：iframe 里的富文本编辑器能挂上回复入口', async () => {
+    const framePage = await context.newPage();
+    watchPage(framePage, 'mail-frame');
+    await framePage.goto(`${origin}/mail-frame.html`);
+    const inner = framePage.frameLocator('#mail-frame');
+    await inner.locator('#mail-editor').click();
+    const button = inner.locator('.lt-float');
+    await button.waitFor({ timeout: 10000 });
+    const label = (await button.textContent()).trim();
+    if (!label.includes('翻译回复')) throw new Error(`按钮文案不对：${label}`);
+    // 按钮必须挂在这个 iframe 自己的文档里，而不是顶层文档算错坐标后飘过来
+    const strays = await framePage.locator('.lt-float').count();
+    if (strays !== 0) throw new Error(`顶层文档不该有输入框入口，却找到 ${strays} 个`);
+    await framePage.close();
+    return label;
+  }, 40000);
+
+  await check('子框架：about:blank 里 document.write 的编辑器也能挂上', async () => {
+    const framePage = await context.newPage();
+    watchPage(framePage, 'mail-blank');
+    await framePage.goto(`${origin}/mail-blank.html`);
+    const inner = framePage.frameLocator('#blank-frame');
+    await inner.locator('#blank-editor').click();
+    const button = inner.locator('.lt-float');
+    await button.waitFor({ timeout: 10000 });
+    // 先读文案再关页面：关掉之后 locator 就没有可查的上下文了
+    const label = (await button.textContent()).trim();
+    await framePage.close();
+    return label;
+  }, 40000);
+
+  await check('子框架：不跟着注入整页对照悬浮按钮', async () => {
+    const framePage = await context.newPage();
+    watchPage(framePage, 'mail-frame');
+    await framePage.goto(`${origin}/mail-frame.html`);
+    // 顶层文档该有的照旧要有，否则「子框架没有」证明不了什么
+    await framePage.locator('.lt-bubble').waitFor({ timeout: 10000 });
+    const inner = await framePage.frameLocator('#mail-frame').locator('.lt-bubble').count();
+    await framePage.close();
+    if (inner !== 0) throw new Error(`子框架里不该出现整页对照按钮，却找到 ${inner} 个`);
+    return '顶层有、子框架没有';
+  }, 40000);
+
+  /* 7. 控制台干净（CSP / 模块 / WASM 这三类的报错都在这里暴露） */
   await check('控制台没有 CSP / 模块 / WASM 报错', () => {
     const fatal = consoleErrors.filter(text =>
       /Content Security Policy|Cannot use import statement|WebAssembly|Uncaught/i.test(text)

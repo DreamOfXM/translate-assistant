@@ -42,6 +42,16 @@ test('content script 不是 ESM，且不再注入页面级 CSS', () => {
   assert.equal(entry.css, undefined, '面板样式已改为 Shadow DOM 内联，不应再污染页面');
 });
 
+test('content script 也注入子框架，网页版邮箱的写信框才够得到', () => {
+  const [entry] = manifest.content_scripts;
+  // 网页版邮箱（QQ、163、Gmail…）的写信区都在 iframe 里，QQ 邮箱更是 mainFrame 里
+  // 再套一层编辑器 iframe。不开 all_frames，焦点事件不会出现在扩展看得见的文档里，
+  // 「翻译回复」在邮件页面上永远挂不出来。
+  assert.equal(entry.all_frames, true, '不开 all_frames 就够不到 iframe 里的编辑器');
+  // 这些编辑器多半是 about:blank / srcdoc 加载后 document.write 出来的，同一项开关管两者
+  assert.equal(entry.match_about_blank, true, 'about:blank 与 srcdoc 编辑器需要 match_about_blank');
+});
+
 test('扩展页 CSP 允许编译 WebAssembly', () => {
   // 少了 wasm-unsafe-eval，bergamot 的 WASM 起不来，界面上只会看到「启动超时」
   const csp = manifest.content_security_policy?.extension_pages ?? '';

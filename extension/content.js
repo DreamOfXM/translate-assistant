@@ -25,6 +25,17 @@ import { initI18n, t, uiLang } from './lib/i18n.js';
 const HOST_ID = 'local-translator-root';
 const SELECTION_BUTTON_LIFETIME = 4000;
 
+/**
+ * 是否跑在子框架（iframe）里。
+ *
+ * 网页版邮箱的写信框、论坛编辑器和各种富文本编辑器普遍放在 iframe 里，所以 manifest
+ * 开了 all_frames，让「翻译回复」在子框架里也能挂上按钮。
+ * 但「悬停阅读 / 整页双语对照」只该由顶层文档负责：页面里每个广告、挂件、嵌入播放器
+ * 的 iframe 都跟着翻一遍，既没有意义又费电。子框架里只保留两条输入路径——
+ * 输入框旁的「翻译回复」和选中文本的「翻译选中」。
+ */
+const IS_SUBFRAME = window.self !== window.top;
+
 let host = null;       // #local-translator-root
 let shadow = null;     // ShadowRoot
 let card = null;       // 当前打开的面板
@@ -116,7 +127,8 @@ function escapeHtml(value) {
  * Chrome 自己也有下载提示，但它不说百分比，用户只能看着按钮干等。
  */
 function onModelState({ phase, percent }) {
-  if (!hoverReader) return;
+  // 子框架没有悬浮按钮，进度由翻译卡片自己显示
+  if (!hoverReader || IS_SUBFRAME) return;
   if (phase !== 'downloading') {
     hoverReader.setBubbleDownload(null);   // 下好了或失败了，按钮交还给进度与译文
     return;
@@ -756,10 +768,12 @@ async function restoreReaderSettings() {
   }
 }
 
-restoreReaderSettings();
+// 悬停阅读与整页对照只在顶层文档生效，子框架连这份设置都不用读
+if (!IS_SUBFRAME) restoreReaderSettings();
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || !changes) return;
+  if (IS_SUBFRAME) return;
   if (Object.prototype.hasOwnProperty.call(changes, HOVER_STORAGE_KEY)) {
     hoverReader.setEnabled(Boolean(changes[HOVER_STORAGE_KEY].newValue));
   }

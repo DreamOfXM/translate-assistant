@@ -88,7 +88,7 @@ The build lands in `dist/translate-assistant` (load it as above) and also produc
 
 1. **Install a pack**: click the extension icon → **Manage packs** → download the direction you need (e.g. en→zh)
 2. **Read foreign pages**: just open them — translations appear automatically; the floating button collapses everything
-3. **Reply in foreign languages**: hit **Translate reply** in a comment box, write in your language, generate, confirm, fill in
+3. **Reply in foreign languages**: hit **Translate reply** in a comment box or in a webmail compose box, write in your language, generate, confirm, fill in
 
 The UI speaks **中文 / English** — it follows your browser language and can be switched on the welcome page or in the pack manager.
 
@@ -98,6 +98,7 @@ The UI speaks **中文 / English** — it follows your browser language and can 
 - The Chrome built-in engine needs Chrome 138+; which language pairs it covers is Chrome's call, and it cannot be provisioned for offline use — when it isn't available the extension falls back to local language packs, so nothing breaks
 - The WASM runtime is about 5 MB and loaded packs noticeably raise memory (traded for no cold start on the second translation)
 - Language and main-content detection are lightweight heuristics; exotic pages may be misjudged (biased toward translating more, never less)
+- Only pages rendered by the browser are in scope. Input fields inside desktop clients (mail apps, chat apps, note apps) are out of reach for any extension; webmail in a browser does work, including compose boxes that live inside an iframe
 - Some rich-text editors reject programmatic input; the panel then suggests copying instead
 
 ## 🛠️ Releasing / Contributing
