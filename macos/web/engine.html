@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>翻译引擎宿主</title>
+</head>
+<body>
+<p id="status">翻译引擎宿主页面</p>
+<script src="/shims.js"></script>
+<script type="module">
+import { createEngine } from '/lib/engine.js';
+import { detectLanguageByRatio, suggestTarget, DEFAULT_TARGET_LANGUAGE, AUTO_DETECT } from '/lib/languages.js';
+
+const engine = createEngine();
+
+function emit(progress) {
+  try {
+    window.ltOnProgress?.(progress);
+  } catch {
+    // 宿主没接进度就静默，别让它打断翻译
+  }
+}
+
+engine.setProgressHandler(emit);
+
+/**
+ * 语言方向。与扩展「翻译回复」那条路径用同一个判定函数，
+ * 避免英文为主、夹几个汉字的草稿被误判成中文。
+ */
+function resolveDirection(text, from, to) {
+  if (from && from !== AUTO_DETECT) return { source: from, target: to, flipped: false };
+  const source = detectLanguageByRatio(text);
+  const same = source === to;
+  return { source, target: same ? suggestTarget(source, DEFAULT_TARGET_LANGUAGE) : to, flipped: same };
+}
+
+window.ltEngine = {
+  async translate(text, from, to) {
+    const direction = resolveDirection(text, from, to);
+    const translated = await engine.translate({ text, source: direction.source, target: direction.target });
+    return { text: translated, source: direction.source, target: direction.target };
+  },
+
+  async preload(direction) {
+    return engine.preload(direction);
+  },
+
+  async catalog() {
+    return engine.catalog();
+  },
+
+  async remove(direction) {
+    return engine.remove(direction);
+  },
+
+  detect(text) {
+    return detectLanguageByRatio(text);
+  },
+
+  async version() {
+    return {
+      ready: true,
+      target: DEFAULT_TARGET_LANGUAGE,
+      // 垫片没挂上时，缓存和代理会静默走浏览器自带实现，必须让宿主看得见
+      shimFailures: globalThis.__ltShimFailures ?? []
+    };
+  }
+};
+
+window.__ltEngineReady = true;
+</script>
+</body>
+</html>
