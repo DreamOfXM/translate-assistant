@@ -252,3 +252,145 @@ test('浮标有开关，能在菜单里关掉', () => {
   // 默认必须是开的：热键是「知道有这功能才用得上」的入口，浮标是看得见的入口
   assert.match(read('macos/Sources/TranslateAssistant/Preferences.swift'), /Key\.inlinePill\) as\? Bool \?\? true/);
 });
+
+// ↓↓↓ 读「选中的文字」这条路
+
+function selectionSource() {
+  return read('macos/Sources/TranslateAssistant/Selection.swift');
+}
+
+/** 抠出某个函数的完整函数体：从它的声明到下一个同缩进的函数声明为止 */
+function functionBody(source, name) {
+  const start = source.indexOf(`private static func ${name}`);
+  assert.ok(start > 0, `找不到 ${name}`);
+  const next = source.indexOf('\n    private static func ', start + 10);
+  return source.slice(start, next > 0 ? next : source.length);
+}
+
+test('读选区有三条通道，且按副作用从小到大排', () => {
+  // 网页里的选区跟「输入框」不是一回事：AX 属性读不到时必须还有后手，
+  // 否则「翻译选中文字」在邮件、网页里直接失效。
+  const source = selectionSource();
+  for (const channel of ['case accessibility', 'case menu', 'case keystroke']) {
+    assert.ok(source.includes(channel), `Selection.Source 缺少 ${channel}`);
+  }
+
+  const order = ['readViaAttributes(pid:', 'findMenuItem(inApp: pid, command: "C"', 'copyViaKeystroke(pid:'];
+  const positions = order.map(needle => {
+    const at = source.indexOf(needle);
+    assert.ok(at > 0, `找不到 ${needle}`);
+    return at;
+  });
+  const sorted = [...positions].sort((a, b) => a - b);
+  assert.deepEqual(positions, sorted, '通道顺序必须是「先 AX、再菜单、最后合成按键」');
+});
+
+test('AX 那条通道只认真正的文本控件', () => {
+  // 实测：同一段选区，Chromium 在网页容器（AXWebArea）上时有时无，
+  // 报出来时还会把换行和制表符压平（下单⇥03 变成 下单03）；AXTextArea 每次都准。
+  const source = selectionSource();
+  for (const role of ['kAXTextAreaRole', 'kAXTextFieldRole', 'kAXComboBoxRole']) {
+    assert.ok(source.includes(role), `可编辑文本控件清单里少了 ${role}`);
+  }
+  const start = source.indexOf('private static func selectedText(of element: AXUIElement)');
+  const end = source.indexOf('private static func isEditableTextRole', start);
+  assert.ok(start > 0 && end > start, '找不到 selectedText');
+  assert.match(source.slice(start, end), /guard isEditableTextRole\(element\) else \{ return nil \}/);
+});
+
+test('借来的剪贴板必须还回去', () => {
+  // 走菜单项/合成按键那两条通道要借用剪贴板。用户的剪贴板不该因为读一段文字就没了。
+  const source = selectionSource();
+  assert.match(source, /private static func savePasteboard/);
+  assert.match(source, /private static func restorePasteboard/);
+
+  for (const name of ['copyViaMenuItem', 'copyViaKeystroke']) {
+    const body = functionBody(source, name);
+    assert.match(body, /savePasteboard\(\)/, `${name} 用之前没存剪贴板`);
+    assert.match(body, /restorePasteboard\(saved\)/, `${name} 用完没还剪贴板`);
+  }
+});
+
+test('终端类应用绝不替用户发合成按键', () => {
+  // 这些应用里 ⌘C / ⌘V 常被绑成「把控制字符打进终端」，
+  // 替用户按一下等于往他的 shell 里塞一个中断 —— 宁可失败也不能干。
+  const source = selectionSource();
+  assert.match(source, /keystrokeUnsafeBundleIDs/);
+  for (const id of ['com.apple.Terminal', 'com.googlecode.iterm2']) {
+    assert.ok(source.includes(id), `终端拒绝名单里少了 ${id}`);
+  }
+  assert.match(source, /private static func keystrokeRefusal/);
+});
+
+test('菜单项按键位找，不靠标题', () => {
+  // 中英文界面的标题不一样，快捷键却一样。而且 Chrome 里 cmd=C 的项有三个，
+  // 「窗口 › 居中」和「检查元素」都带 C，只靠字母分不开，要靠修饰键掩码。
+  const source = selectionSource();
+  assert.match(source, /AXMenuItemCmdChar/);
+  assert.match(source, /AXMenuItemCmdModifiers/);
+  assert.match(source, /kAXMenuItemRole/);
+  assert.match(source, /if mods == 0 \{ exact = exact \?\? item \}/);
+});
+
+test('只读的位置不假装回填成功', () => {
+  // 邮件阅读窗格、网页正文都是只读的，译文粘不进去。这时要直说，
+  // 并且把译文留在剪贴板里 —— 那是用户此刻唯一能拿到的成果。
+  const source = selectionSource();
+  const start = source.indexOf('if targetKind(pid: pid) == .readOnly');
+  assert.ok(start > 0, '找不到只读分支');
+  const end = source.indexOf('let saved = savePasteboard()', start);
+  assert.ok(end > start, '只读分支应当在借用剪贴板之前就返回');
+
+  const branch = source.slice(start, end);
+  assert.match(branch, /ok: false/);
+  assert.match(branch, /译文已经放进剪贴板/);
+  assert.doesNotMatch(branch, /restorePasteboard/, '只读时不能把译文从剪贴板里收回去');
+});
+
+test('「翻译选中文字」不要求先有一个焦点输入框', () => {
+  // 选区可能压根不在输入框里（阅读窗格就是只读的），
+  // 所以这条路不能复用「读当前输入框」的实现。
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  assert.match(delegate, /private func beginSelection\(\)/);
+  assert.match(delegate, /let result = Selection\.read\(\)/);
+  assert.match(delegate, /case \.selection:\s*\n\s*beginSelection\(\)/);
+
+  const start = delegate.indexOf('private func beginSelection()');
+  const end = delegate.indexOf('private func beginWholeField', start);
+  const body = delegate.slice(start, end);
+  assert.doesNotMatch(body, /Accessibility\.snapshot/, '选中模式不该再去读输入框');
+  assert.match(body, /Selection\.read\(\)/);
+});
+
+test('选中模式回填不做整框覆写', () => {
+  // 整框覆写会把用户没选中的部分一起冲掉。
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  const start = delegate.indexOf('private func fillBack()');
+  const end = delegate.indexOf('private func finishFill', start);
+  const body = delegate.slice(start, end);
+  assert.match(body, /Selection\.replace\(text, in: capture\)/);
+  assert.doesNotMatch(body, /Accessibility\.write\(text, into: snapshot, preferring: \.selectedText\)/);
+});
+
+test('选中翻译带一个能自证的诊断入口', () => {
+  // 用户报「选中翻译没反应」时，一句话说不清是权限、菜单还是按键的问题。
+  const entry = read('macos/Sources/TranslateAssistant/Entry.swift');
+  assert.match(entry, /--check-selection/);
+  assert.match(entry, /Selection\.diagnostics\(target: target\)/);
+
+  // 诊断默认看「前台应用」，而它本身要在终端里敲 —— 那时前台正是终端，
+  // 所以要能指定 pid，否则这份诊断根本查不到出问题的那个 App。
+  assert.match(read('macos/Sources/TranslateAssistant/Paths.swift'), /var selectionPid: pid_t\?/);
+  assert.match(entry, /LaunchOptions\.selectionPid/);
+  assert.match(read('macos/README.md'), /--selection-pid/);
+});
+
+test('macOS 文档说清了选区这条路的三条通道', () => {
+  const readme = read('macos/README.md');
+  // 网页里的选区读不到是平台事实，必须写在文档里，否则用户只会以为功能坏了
+  assert.match(readme, /翻译选中文字/);
+  assert.ok(readme.includes('菜单项'), 'README 应当说明菜单项这条通道');
+  assert.ok(readme.includes('只读'), 'README 应当说明只读位置填不回去');
+  assert.match(readme, /Selection\.swift/);
+});
+

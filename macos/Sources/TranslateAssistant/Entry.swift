@@ -20,6 +20,10 @@ enum Entry {
         // 连 WKWebView 一起验证：起服务 → 加载引擎页 → 真翻一句 → 退出
         if arguments.contains("--check-engine") { exit(await engineCheckMode()) }
         if arguments.contains("--self-check") { exit(selfCheckMode()) }
+        // 排「翻译选中文字」的问题：把三条通道各自的结果打出来。加 --copy 就真跑一次
+        if arguments.contains("--check-selection") {
+            exit(selectionCheckMode(act: arguments.contains("--copy")))
+        }
 
         let application = NSApplication.shared
         let delegate = AppDelegate()
@@ -97,8 +101,67 @@ enum Entry {
         return 0
     }
 
-    private static func selfCheckMode() -> Int32 {
-        var lines = Accessibility.diagnostics()
+    /// 排「翻译选中文字」的问题用。
+    ///
+    /// 默认看「此刻的前台应用」—— 所以在终端里敲的话要加 `--selection-pid <pid>`，
+    /// 否则前台就是终端自己。pid 用 `pgrep` 或者 `--check-selection` 的输出找。
+    ///
+    /// 加 `--copy` 就真跑一次读选区（会走菜单项/合成按键那两条通道，因此会短暂
+    /// 借用剪贴板），用来验证兜底通道和剪贴板复原是否真的有效。
+    private static func selectionCheckMode(act: Bool) -> Int32 {
+        let target = LaunchOptions.selectionPid
+        print(Selection.diagnostics(target: target).joined(separator: "\n"))
+        guard act else { return 0 }
+
+        print("")
+        print("—— 真跑一次 read() ——")
+        let pasteboard = NSPasteboard.general
+        let before = pasteboard.string(forType: .string) ?? "（剪贴板里没有文本）"
+
+        let result = Selection.read(target: target)
+        if let capture = result.capture {
+            print("读到：\(capture.source.rawValue)，\(capture.text.count) 字")
+            print("内容：\(flatten(capture.text))")
+        } else {
+            print("没读到：\(result.error ?? "未知原因")")
+        }
+
+        let after = pasteboard.string(forType: .string) ?? "（剪贴板里没有文本）"
+        print("剪贴板复原：\(before == after ? "是" : "否 —— \(flatten(before)) → \(flatten(after))")")
+
+        // `--paste-check <文本>`：把这段文本真的回填进去，验证「替换」那条路。
+        // 目标窗口标题会被打出来，方便对着一看有没有真的落进去。
+        if let index = CommandLine.arguments.firstIndex(of: "--paste-check"),
+           index + 1 < CommandLine.arguments.count {
+            let probe = CommandLine.arguments[index + 1]
+            guard let capture = result.capture else {
+                print("没有读到选区，回填测试跳过")
+                return 0
+            }
+            let outcome = Selection.replace(probe, in: capture)
+            print("回填：\(outcome.ok ? "成功" : "失败")，通道 \(outcome.channel?.rawValue ?? "无")")
+            if let error = outcome.error { print("说明：\(error)") }
+            print("窗口标题：\(windowTitles(of: target ?? capture.pid))")
+            let kept = NSPasteboard.general.string(forType: .string) ?? "（空）"
+            print("剪贴板现在是：\(flatten(kept))")
+        }
+        return 0
+    }
+
+    private static func windowTitles(of pid: pid_t) -> [String] {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.5)
+        return Accessibility.elements(appElement, kAXWindowsAttribute)
+            .prefix(3)
+            .compactMap { Accessibility.string($0, kAXTitleAttribute) }
+    }
+
+    private static func flatten(_ text: String) -> String {
+        let flat = text.replacingOccurrences(of: "\n", with: "⏎")
+        return flat.count > 60 ? String(flat.prefix(60)) + "…" : flat
+    }
+
+    private static func selfCheckMode() -> Int32 {        var lines = Accessibility.diagnostics()
         lines.append("")
         lines.append("引擎资源：\(Paths.webRoot.path)（\(Paths.engineInstalled ? "存在" : "缺失")）")
         lines.append("语言包目录：\(Paths.cacheRoot.path)")

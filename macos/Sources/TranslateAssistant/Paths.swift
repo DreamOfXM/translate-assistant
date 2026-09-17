@@ -12,6 +12,16 @@ enum LaunchOptions {
         return value
     }
 
+    /// `--selection-pid N`。诊断「翻译选中文字」时指定要检查哪个 App。
+    ///
+    /// 没有它的话这条诊断只能看「此刻的前台应用」—— 而它本身要在终端里敲，
+    /// 那时前台正是终端，等于查不到出问题的那个 App。
+    static var selectionPid: pid_t? {
+        let index = arguments.firstIndex(of: "--selection-pid")
+        guard let index, index + 1 < arguments.count, let value = Int32(arguments[index + 1]) else { return nil }
+        return pid_t(value)
+    }
+
     static var debug: Bool { ProcessInfo.processInfo.environment["LT_MAC_DEBUG"] != nil }
 }
 

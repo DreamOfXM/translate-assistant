@@ -4,6 +4,9 @@
 不只浏览器 —— 备忘录、邮件客户端、聊天工具、Safari 和 Chrome 里的网页，
 走的都是同一条路。
 
+也可以只翻**选中**的那一小段：在邮件、网页里选中一句话按热键即可，
+不必先把它挪进输入框。
+
 不想记热键也行：光标进输入框，它的右上角就会浮出一个「译」按钮，点一下即可。
 
 ## 它是怎么做到的
@@ -22,6 +25,30 @@
 
 代价是必须拿到「辅助功能」授权——这是 macOS 对「读写别的 App 内容」这类能力的
 统一管控，任何工具都绕不过去。
+
+### 「翻译选中文字」为什么不止一条路
+
+选区和输入框是两回事：选区可能落在一个**根本不接受输入**的地方（邮件阅读窗格、
+网页正文都是只读的），所以这条命令不能要求「先有一个焦点输入框」。
+而且实测下来，选区连读都不一定读得到：
+
+- **原生控件**（文本编辑、备忘录）：焦点控件上直接就有 `AXSelectedText`，最快。
+- **Chromium 系**（Chrome、基于 WebView 的邮件客户端、Electron 应用）：这些应用
+  *声明*支持 `AXSelectedText`，但**永远返回空串**，`AXSelectedTextRange` 长度永远是 0。
+  实测把焦点元素往上翻六层、再把整棵窗口树扫一遍，一个节点都读不到——
+  可同一时刻 ⌘A + ⌘C 明明能拷到内容。这不是权限问题，是它压根不往外报网页里的选区。
+
+所以读选区按「副作用从小到大」依次退三条通道，替换译文时同样：
+
+| 通道 | 做法 | 什么时候用得上 | 代价 |
+| --- | --- | --- | --- |
+| ① AX 属性 | 直接问 `AXSelectedText` / 按范围取子串 | 原生文本控件、网页里的可编辑控件 | 无，最快 |
+| ② 菜单项 | 按目标 App「编辑」菜单里的「拷贝」/「粘贴」项 | 上面那条读不到时（网页正文、只读区域） | 纯 AX，但会临时借用剪贴板 |
+| ③ 合成按键 | 发一次 `⌘C` / `⌘V` | 菜单那条也走不通时 | 会临时借用剪贴板 |
+
+第 ②③ 条都会**先把剪贴板存下来、用完还回去**。第 ③ 条对终端类应用（Terminal、
+iTerm2 等）直接拒绝执行：那里的 `⌘C` 常被绑成「发送 `^C`」，替用户按一下等于往他的
+shell 里塞一个中断，这种事宁可失败也不能干。
 
 ## 安装
 
@@ -76,7 +103,9 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 
 浮层出现后有四个按钮：
 
-- **填入**：写回原输入框（会先把焦点还给目标 App）。
+- **填入**：写回原来的位置（会先把焦点还给目标 App）。选区那条命令读到的位置可能是
+  只读的（邮件阅读窗格、网页正文），那时会明说「粘不进去，译文已在剪贴板」，
+  而不是假装成功。
 - **复制**：只复制译文，不动输入框。
 - **重新翻译**：换方向或改了设置后重跑。
 - **关闭**：`Esc` 同效。
@@ -99,11 +128,25 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 
 - **自绘控件**：完全自己画、不暴露无障碍节点的控件读不到。
 - **安全输入框**：密码框系统层面就不允许读。
+- **网页里的选区读得不稳**：Chromium 系（Chrome、基于 WebView 的邮件客户端、Electron
+  应用）在网页容器上读选区**时有时无**，偶尔读到了还会把换行和制表符压平；只有把选区
+  放进**可编辑**控件里时才和原生一样准。所以「翻译选中文字」不赌那一次读，
+  一律退到菜单项 / 合成按键兜底 —— 那两条拿回来的是完整原文。
+- **只读的地方填不回去**：邮件阅读窗格、网页正文都是只读的，译文粘不进去 ——
+  这时浮层会直说「译文已在剪贴板」，不会假装成功。想原地替换就选中**可输入**区域
+  里的文字（比如自己正在写的回复）。
+- **终端里不发合成按键**：Terminal、iTerm2 等应用的 `⌘C` / `⌘V` 可能被绑成发送控制
+  字符，这条兜底会直接拒绝执行，改由菜单项或手动复制完成。
 - **光标位置**：Electron 应用普遍不提供 `AXSelectedTextRange`，所以拿不到光标
   位置，只能整框读写（对「读草稿 → 整框填回」这个用法没有影响）。
 - **Electron 应用需要唤醒**：这类应用平时不构建无障碍节点树（省电）。App 在读取
   前会临时打开 `AXManualAccessibility` / `AXEnhancedUserInterface`，读完复原。
 - **个别 Electron 应用读不到内容** —— 用菜单里的「自检」把报告贴出来可以定位。
+
+> 用「翻译选中文字」时，走菜单项或合成按键这两条通道需要短暂借用剪贴板：
+> 先把原来的内容存下来，读完（或填完）立刻还回去。选中文字后如果发现剪贴板
+> 在极短的时间里变了又变回去，就是这个原因。唯一不回还的情况是「填入」时发现
+> 目标只读 —— 那时译文要留在剪贴板里给你用。
 
 关于输入框旁的小「译」按钮，另有两件事要知道：
 
@@ -179,6 +222,13 @@ macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --check-engi
 # 辅助功能状态 + 焦点控件的可写属性 + 语言包缓存
 macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --self-check
 
+# 「翻译选中文字」为什么没反应：三条通道各自的结果
+# 加了 --selection-pid 就查指定的那个 App（不指定则是「此刻的前台应用」，
+# 而从终端里敲的话前台就是终端本身，所以基本都要指定）
+macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --check-selection --selection-pid 1234
+# 再加 --copy 就真跑一次读取（会走菜单项/合成按键，因此会短暂借用剪贴板）
+macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --check-selection --selection-pid 1234 --copy
+
 # 打印引擎服务的每个请求（排引擎问题用）
 LT_MAC_DEBUG=1 macos/dist/TranslateAssistant.app/Contents/MacOS/TranslateAssistant --serve
 ```
@@ -199,6 +249,7 @@ macos/
 │   ├── Entry.swift                入口 + --serve / --check-engine / --self-check
 │   ├── AppDelegate.swift          菜单栏、热键注册、翻译流程、浮标接线
 │   ├── Accessibility.swift        AX 读写层（读输入框 / 回填 / 授权 / 焦点输入框坐标）
+│   ├── Selection.swift            读「选中的文字」并替换回去（AX 属性 / 菜单项 / 合成按键三条通道）
 │   ├── EngineServer.swift         回环 HTTP 服务 + 语言包代理与磁盘缓存
 │   ├── HTTPServer.swift           极简 HTTP 传输层
 │   ├── EngineBridge.swift         WKWebView ↔ Swift 的 async 桥

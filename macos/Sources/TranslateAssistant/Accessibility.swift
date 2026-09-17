@@ -171,9 +171,21 @@ enum Accessibility {
 
     // MARK: - 写回
 
+    /// 把译文原地替换掉那个选区。
+    ///
+    /// 同样**不做通道回退**：写不进选区就只有「没写进去」这一种结果，绝不去动整框。
+    /// 返回 nil 表示成功，否则是给人看的原因。
+    static func replaceSelection(_ text: String, in element: AXUIElement) -> String? {
+        guard isTrusted else { return "缺少辅助功能授权" }
+        guard isSettable(element, kAXSelectedTextAttribute) else { return "这个位置不支持原地替换" }
+        return set(element, kAXSelectedTextAttribute, text as CFString)
+    }
+
     enum WriteChannel: String {
         case value = "整框覆写"
         case selectedText = "替换选区"
+        /// 目标 App 的选区不在 AX 可见的控件上（网页内容），只能靠粘贴进去
+        case paste = "粘贴回填"
     }
 
     struct WriteResult {
@@ -275,6 +287,50 @@ enum Accessibility {
         // 少数控件把数值属性回成 NSNumber，转一下更好用
         if let number = value as? NSNumber { return number.stringValue }
         return nil
+    }
+
+    /// 按范围取子串。这是**参数化属性**，不是普通属性，所以单独走一个 API。
+    ///
+    /// 少数控件（尤其是内嵌网页里的编辑器）`AXSelectedText` 空着，但给它一个
+    /// `AXSelectedTextRange` 它能照着范围把文字吐出来 —— 这是 Chromium 内部
+    /// 自己的取 текст路径，值得试一次。
+    static func stringForRange(_ element: AXUIElement, _ range: NSRange) -> String? {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let value = AXValueCreate(.cfRange, &cfRange) else { return nil }
+        var out: CFTypeRef?
+        let error = AXUIElementCopyParameterizedAttributeValue(
+            element, "AXStringForRange" as CFString, value, &out
+        )
+        guard error == .success else { return nil }
+        return out as? String
+    }
+
+    /// 原始属性值。布尔/数值属性都从这儿取，省得每个都写一遍同样的样板。
+    static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        return value
+    }
+
+    static func number(_ element: AXUIElement, _ attribute: String) -> Int? {
+        (value(element, attribute) as? NSNumber)?.intValue
+    }
+
+    /// 读一个开关型属性。读不到时算 `true` —— 需要在「读不到」和「明确关掉」
+    /// 之间做区分时，宁可当作可用，让上层真的去试一次。
+    static func flag(_ element: AXUIElement, _ attribute: String) -> Bool {
+        guard let number = value(element, attribute) as? NSNumber else { return true }
+        return number.boolValue
+    }
+
+    /// 取一个「元素数组」型属性（`AXChildren`、`AXWindows` 之类）。
+    static func elements(_ element: AXUIElement, _ attribute: String) -> [AXUIElement] {
+        guard let raw = value(element, attribute), CFGetTypeID(raw) == CFArrayGetTypeID() else { return [] }
+        let list = unsafeBitCast(raw, to: CFArray.self) as NSArray
+        return list.compactMap { item in
+            guard CFGetTypeID(item as CFTypeRef) == AXUIElementGetTypeID() else { return nil }
+            return unsafeBitCast(item as CFTypeRef, to: AXUIElement.self)
+        }
     }
 
     static func range(_ element: AXUIElement, _ attribute: String) -> NSRange? {

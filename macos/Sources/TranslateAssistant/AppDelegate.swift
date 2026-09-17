@@ -25,6 +25,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var engineError: String?
     private var hotKeyError: String?
     private var current: Accessibility.FieldSnapshot?
+    /// 本次翻译的选区（「翻译选中文字」走这条路，跟输入框那条完全分开）
+    private var currentSelection: Selection.Capture?
     private var currentMode: Mode = .wholeField
     private var trustTimer: Timer?
 
@@ -193,29 +195,69 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        switch mode {
+        case .selection:
+            beginSelection()
+        case .wholeField:
+            beginWholeField(anchor: anchor)
+        }
+    }
+
+    /// 「翻译选中文字」。
+    ///
+    /// 跟输入框那条路完全分开：选区可能压根不在任何输入框里（邮件阅读窗格、
+    /// 网页正文都是只读的），所以不能要求「先有一个焦点输入框」。取选区本身
+    /// 分三条通道，细节见 `Selection`。
+    private func beginSelection() {
+        let result = Selection.read()
+        guard let capture = result.capture else {
+            hud.notice(result.error ?? "读不到选中的文字。")
+            return
+        }
+
+        let text = capture.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            hud.notice("没有选中任何文字。")
+            return
+        }
+        guard text.count <= preferences.maxCharacters else {
+            hud.notice("选中的文字有 \(text.count) 个字符，超过上限 \(preferences.maxCharacters)。先在设置里放宽，或少选一段再翻。")
+            return
+        }
+
+        current = nil
+        currentSelection = capture
+        currentMode = .selection
+        currentAnchor = capture.anchor
+
+        let appName = capture.appName ?? "未知应用"
+        hud.show(original: text, status: "\(appName) · \(capture.source.rawValue) · 翻译中…", near: currentAnchor)
+        Task { await translate(text) }
+    }
+
+    /// 「翻译当前输入框」。
+    private func beginWholeField(anchor: Accessibility.FieldGeometry?) {
         // 从浮标点进来时翻的就是浮标旁边那个输入框。这里不再问一次系统焦点 ——
         // 用户的手可能已经点到别处，再问就该翻错对象了。
         let snapshot = anchor.map { Accessibility.snapshot(of: $0) } ?? Accessibility.snapshot()
         guard let snapshot else {
-            hud.notice("没读到输入框。先把光标点进某个输入框，或改用「翻译选中文字」。")
+            hud.notice("没读到输入框。先把光标点进某个输入框，或选中一段文字后用「翻译选中文字」。")
             return
         }
 
-        let raw = mode == .selection ? (snapshot.selectedText ?? "") : snapshot.text
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-
+        let text = snapshot.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            hud.notice(mode == .selection ? "没有选中任何文字。" : "这个输入框是空的。")
+            hud.notice("这个输入框是空的。")
             return
         }
-
         guard text.count <= preferences.maxCharacters else {
             hud.notice("输入框有 \(text.count) 个字符，超过上限 \(preferences.maxCharacters)。先在设置里放宽，或只选一段再翻。")
             return
         }
 
         current = snapshot
-        currentMode = mode
+        currentSelection = nil
+        currentMode = .wholeField
         currentAnchor = anchor?.frame
 
         let appName = snapshot.appName ?? "未知应用"
@@ -232,15 +274,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 from: preferences.direction.from,
                 to: preferences.direction.to
             )
-            let appName = current?.appName ?? "未知应用"
             hud.update(
                 translated: result.text,
-                status: "\(appName) · \(result.source.uppercased()) → \(result.target.uppercased())",
+                status: "\(targetAppName) · \(result.source.uppercased()) → \(result.target.uppercased())",
                 warning: quotedHistoryWarning(in: text)
             )
         } catch {
             hud.fail("翻译失败：\(error.localizedDescription)")
         }
+    }
+
+    /// 本次翻译对应的 App 名，两种模式都得能取到
+    private var targetAppName: String {
+        current?.appName ?? currentSelection?.appName ?? "未知应用"
     }
 
     /// 邮件、论坛的回复草稿里常带一长段引用历史。整框译完再「填入」会把引用一起换掉，
@@ -267,29 +313,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func retry() {
-        guard let snapshot = current else { return }
-        let text = currentMode == .selection ? (snapshot.selectedText ?? "") : snapshot.text
-        hud.show(original: text, status: "重新翻译…", near: currentAnchor)
-        Task { await translate(text) }
+        switch currentMode {
+        case .selection:
+            guard let capture = currentSelection else { return }
+            hud.show(original: capture.text, status: "重新翻译…", near: capture.anchor)
+            Task { await translate(capture.text) }
+        case .wholeField:
+            guard let snapshot = current else { return }
+            hud.show(original: snapshot.text, status: "重新翻译…", near: currentAnchor)
+            Task { await translate(snapshot.text) }
+        }
     }
 
+    /// 把译文写回去。
+    ///
+    /// 两种模式的落点完全不同：输入框是「整框覆写或替换选区」，选区的落点则可能
+    /// 压根不在 AX 能写的控件上（网页内容），那时只能借粘贴。所以交给各自的实现。
     private func fillBack() {
-        guard let snapshot = current else { return }
         let text = hud.translatedText
         guard !text.isEmpty else { return }
 
-        // 浮层是 key window，焦点可能已经不在原来的输入框上了，先把目标 App 拉回前台
-        activate(snapshot.pid)
+        switch currentMode {
+        case .selection:
+            guard let capture = currentSelection else { return }
+            hud.setStatus("填入中…")
+            // 结果浮层是能成为 key 的面板，得先把前台让回去，粘贴才有落脚点
+            activateAndWait(capture.pid)
+            finishFill(Selection.replace(text, in: capture))
+        case .wholeField:
+            guard let snapshot = current else { return }
+            hud.setStatus("填入中…")
+            activateAndWait(snapshot.pid)
+            finishFill(Accessibility.write(text, into: snapshot))
+        }
+    }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-            guard let self else { return }
-            let channel: Accessibility.WriteChannel? = self.currentMode == .selection ? .selectedText : nil
-            let result = Accessibility.write(text, into: snapshot, preferring: channel)
-            if result.ok {
-                self.hud.close()
-            } else {
-                self.hud.fail("回填失败：\(result.error ?? "未知原因")")
-            }
+    private func finishFill(_ result: Accessibility.WriteResult) {
+        if result.ok {
+            hud.close()
+        } else {
+            hud.fail("回填失败：\(result.error ?? "未知原因")")
         }
     }
 
@@ -300,15 +363,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         hud.setStatus("已复制到剪贴板")
-    }
-
-    private func activate(_ pid: pid_t) {
-        guard let app = NSRunningApplication(processIdentifier: pid) else { return }
-        if #available(macOS 14.0, *) {
-            app.activate()
-        } else {
-            app.activate(options: [.activateAllWindows])
-        }
     }
 
     private func ensureTrusted() -> Bool {
