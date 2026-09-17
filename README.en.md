@@ -92,13 +92,34 @@ The build lands in `dist/translate-assistant` (load it as above) and also produc
 
 The UI speaks **中文 / English** — it follows your browser language and can be switched on the welcome page or in the pack manager.
 
+## 🖥️ macOS menu bar app
+
+A browser extension can only see the pages it injects into. To translate the input
+field of **any app** (Notes, mail clients, chat apps, web pages) on the same engine,
+the repo also ships a macOS menu bar app.
+
+```bash
+npm run build:macos
+open macos/dist/TranslateAssistant.app
+```
+
+- `⌃⌥T` translates the focused input field, `⌃⌥Y` translates the selection; confirm in
+  the panel and the result is written back in place
+- Reuses the **same** Bergamot WASM engine and the same language packs, fully offline
+- Reads and writes the focused field through the system Accessibility API, so it needs
+  a one-time Accessibility grant
+- The panel deliberately never steals focus; focus is handed back to the target app
+  before writing
+
+Scope, permission steps and known blind spots: [macos/README.md](macos/README.md).
+
 ## ⚠️ Known limitations
 
 - Models are English-centric: non-English pairs relay through English, costing some speed and quality
 - The Chrome built-in engine needs Chrome 138+; which language pairs it covers is Chrome's call, and it cannot be provisioned for offline use — when it isn't available the extension falls back to local language packs, so nothing breaks
 - The WASM runtime is about 5 MB and loaded packs noticeably raise memory (traded for no cold start on the second translation)
 - Language and main-content detection are lightweight heuristics; exotic pages may be misjudged (biased toward translating more, never less)
-- Only pages rendered by the browser are in scope. Input fields inside desktop clients (mail apps, chat apps, note apps) are out of reach for any extension; webmail in a browser does work, including compose boxes that live inside an iframe
+- Only pages rendered by the browser are in scope. Input fields inside desktop clients (mail apps, chat apps, note apps) are out of reach for any extension; webmail in a browser does work, including compose boxes that live inside an iframe. For those fields use the [macOS menu bar app](macos/README.md), which goes through the system Accessibility API instead of the browser
 - Some rich-text editors reject programmatic input; the panel then suggests copying instead
 
 ## 🛠️ Releasing / Contributing
@@ -127,6 +148,7 @@ extension/
   vendor/             bergamot-translator 0.4.9 (MPL-2.0)
 tests/unit/           unit tests (node:test + jsdom)
 tests/e2e/            Playwright end-to-end smoke tests
+macos/                macOS menu bar app (Accessibility API reads/writes any input field, same engine)
 scripts/              packaging and engine verification
 docs/                 store listing copy and demo assets
 LICENSE               full MPL-2.0 license text
