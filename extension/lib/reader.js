@@ -434,10 +434,12 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       return;
     }
     if (done) {
-      const engineTag = bubbleEngine ? ` · ${bubbleEngine}` : '';
-      bubble.textContent = t('bubble_done', { n: done }) + engineTag;
+      bubble.textContent = t('bubble_done', { n: done });
+      // 引擎信息放悬停提示，不占按钮视觉
+      bubble.title = bubbleEngine ? `${t('bubble_title')} · ${bubbleEngine}` : t('bubble_title');
       return;
     }
+    bubble.title = t('bubble_title');
     bubble.textContent = bubbleIdle();
   };
 
