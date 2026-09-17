@@ -70,6 +70,7 @@ async function run() {
     return;
   }
 
+  let lastEngine = null;
   const { source, target, same } = langbar.resolve(text);
   if (same) {
     setStatus(t('status_same_lang', { name: languageName(target, uiLang()) }), 'error');
@@ -88,14 +89,16 @@ async function run() {
       segment => chrome.runtime.sendMessage({
         type: MESSAGES.TRANSLATE, text: segment, source, target
       }).then(response => {
-        if (!response) throw new Error('翻译引擎没有响应。');
+        if (!response) throw new Error(t('error_no_response'));
         if (response.error) throw new Error(response.error);
+        lastEngine = response.engine ?? lastEngine;
         return response.text;
       }),
       { onProgress: showProgress }
     );
     showResult(outcome.text, t('output_label_named', { name: languageName(target, uiLang()) }));
-    setStatus(outcome.segments > 1 ? t('status_done_segments', { n: outcome.segments }) : t('status_done'), 'ok');
+    const engineLabel = t(lastEngine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
+    setStatus((outcome.segments > 1 ? t('status_done_segments', { n: outcome.segments }) : t('status_done')) + ' · ' + engineLabel, 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {

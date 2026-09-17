@@ -134,6 +134,8 @@ const ZH = {
   error_no_response: '翻译引擎没有响应。',
   status_result_segmented: '已分 {n} 段翻译完成。',
   status_result_done: '翻译完成。',
+  engine_chrome_label: 'Chrome 内建引擎',
+  engine_local_label: '本地语言包引擎',
   error_updated: '扩展已更新，请刷新页面后重试。',
   error_connect: '无法连接翻译引擎：{msg}',
   error_no_response_reload: '翻译引擎没有响应，请重新加载扩展后重试。'
@@ -257,6 +259,8 @@ const EN = {
   error_no_response: 'The translation engine did not respond.',
   status_result_segmented: 'Done in {n} parts.',
   status_result_done: 'Done.',
+  engine_chrome_label: 'Chrome built-in engine',
+  engine_local_label: 'Local pack engine',
   error_updated: 'The extension was updated — refresh the page and try again.',
   error_connect: "Couldn't reach the translation engine: {msg}",
   error_no_response_reload: 'The engine did not respond — reload the extension and try again.'

@@ -122,16 +122,22 @@ async function requestTranslation(text, source, target) {
   }
   if (!response) throw new Error(t('error_no_response_reload'));
   if (response.error) throw new Error(response.error);
-  return response.text;
+  return { text: response.text, engine: response.engine };
 }
 
 /** 长文本自动分段逐段翻译，不做静默截断 */
 async function translate({ text, source, target, onProgress }) {
-  return translateInSegments(
+  let engine = null;
+  const outcome = translateInSegments(
     text,
-    segment => requestTranslation(segment, source, target),
+    segment => requestTranslation(segment, source, target).then(part => {
+      engine = part.engine ?? engine;
+      return part.text;
+    }),
     { onProgress }
   );
+  outcome.engine = engine;
+  return outcome;
 }
 
 /* ---------------------------------- 结果卡片 --------------------------------- */
@@ -205,7 +211,8 @@ function openResultCard({ text, rect }) {
       const outcome = await translate({ text, source, target: to, onProgress: showProgress });
       translated = outcome.text;
       showResult({ result, label: outputLabel, copyButton }, translated, languageName(to));
-      status(message, outcome.segments > 1 ? t('status_result_segmented', { n: outcome.segments }) : t('status_result_done'), 'ok');
+      const engineLabel = t(outcome.engine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
+      status(message, (outcome.segments > 1 ? t('status_result_segmented', { n: outcome.segments }) : t('status_result_done')) + ' · ' + engineLabel, 'ok');
     } catch (error) {
       status(message, error.message, 'error');
     } finally {
@@ -552,7 +559,7 @@ async function translateParagraph(text) {
   }
   const outcome = await translateInSegments(
     text,
-    segment => requestTranslation(segment, source, READ_TARGET_LANGUAGE)
+    segment => requestTranslation(segment, source, READ_TARGET_LANGUAGE).then(part => part.text)
   );
   return outcome.text;
 }
