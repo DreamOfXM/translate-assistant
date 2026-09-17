@@ -4,7 +4,9 @@
 
 **Translate foreign-language pages locally in your browser — no API keys, no uploads, offline once packs are installed**
 
-[简体中文](README.md) | **English**
+*On-device translation for Chrome: bilingual full-page view, select-to-translate and reply drafts. A Google Translate / Immersive Translate alternative that needs no API key and sends nothing anywhere.*
+
+[简体中文](README.md) | **English README**
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)

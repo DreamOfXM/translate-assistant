@@ -4,7 +4,9 @@
 
 **在浏览器里本地翻译网页的外语内容 —— 不用 API Key、不上传文本、装好语言包离线也能用**
 
-**简体中文** | [English](README.en.md)
+*Offline on-device page translation for Chrome: bilingual full-page view, no API keys, no uploads, no tracking.*
+
+**简体中文** | [English README](README.en.md)
 
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
