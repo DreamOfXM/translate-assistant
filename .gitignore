@@ -2,3 +2,4 @@ node_modules/
 .DS_Store
 dist/
 tests/e2e/.chrome-profile/
+HANDOFF.md
