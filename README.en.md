@@ -94,6 +94,8 @@ The UI speaks **中文 / English** — it follows your browser language and can 
 
 ## 🖥️ macOS menu bar app
 
+> This section is for macOS users only; Windows / Linux users can skip it — the extension itself uses no platform-specific features.
+
 A browser extension can only see the pages it injects into. To translate the input
 field of **any app** (Notes, mail clients, chat apps, web pages) on the same engine,
 the repo also ships a macOS menu bar app.
@@ -119,7 +121,7 @@ Scope, permission steps and known blind spots: [macos/README.md](macos/README.md
 - The Chrome built-in engine needs Chrome 138+; which language pairs it covers is Chrome's call, and it cannot be provisioned for offline use — when it isn't available the extension falls back to local language packs, so nothing breaks
 - The WASM runtime is about 5 MB and loaded packs noticeably raise memory (traded for no cold start on the second translation)
 - Language and main-content detection are lightweight heuristics; exotic pages may be misjudged (biased toward translating more, never less)
-- Only pages rendered by the browser are in scope. Input fields inside desktop clients (mail apps, chat apps, note apps) are out of reach for any extension; webmail in a browser does work, including compose boxes that live inside an iframe. For those fields use the [macOS menu bar app](macos/README.md), which goes through the system Accessibility API instead of the browser
+- Only pages rendered by the browser are in scope. Input fields inside desktop clients (mail apps, chat apps, note apps) are out of reach for any extension; webmail in a browser does work, including compose boxes that live inside an iframe. On macOS those fields are covered by the [macOS menu bar app](macos/README.md) (macOS only), which goes through the system Accessibility API instead of the browser
 - Some rich-text editors reject programmatic input; the panel then suggests copying instead
 
 ## 🛠️ Releasing / Contributing

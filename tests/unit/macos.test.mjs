@@ -131,6 +131,38 @@ test('macOS 文档说明了重新构建后要重新授权', () => {
   assert.match(readme, /重新授权|重新授权|重新勾选|重新添加/, '必须写清 ad-hoc 签名导致权限失效这个坑');
 });
 
+test('浏览器扩展的构建与发版完全不牵涉 macOS 端', () => {
+  // 扩展是跨平台的（Windows / macOS / Linux 上都是同一份前端代码），
+  // macOS 端是附加目标。两边的构建、测试、发版必须互不牵连，
+  // 否则非 macOS 用户会被一个他用不上的目标拖累。
+  //
+  // 判据是「有没有引用 macOS 端的目录或构建入口」，而不是「有没有出现过 macos 这个词」：
+  // build.mjs 里有一句「macOS 上没有 zip 时退回 ditto」，那是正当提及，不是耦合。
+  for (const name of ['build.mjs', 'release.mjs', 'verify-engine.mjs']) {
+    const source = read(`scripts/${name}`);
+    assert.doesNotMatch(source, /macos[\\/]/i, `${name} 不该引用 macOS 端的目录`);
+    assert.doesNotMatch(source, /build-macos|TranslateAssistant\.app/, `${name} 不该触发 macOS 端的构建`);
+  }
+
+  // 发版只附带扩展那一个 zip
+  const release = read('scripts/release.mjs');
+  assert.match(release, /translate-assistant-v\$\{next\}\.zip/);
+  assert.doesNotMatch(release, /\.dmg/);
+});
+
+test('macOS 构建脚本在非 macOS 平台上明确拒绝，而不是抛 ENOENT', () => {
+  assert.match(read('scripts/build-macos.mjs'), /process\.platform !== 'darwin'/);
+});
+
+test('macOS 单测不执行外部命令，非 macOS 平台也能跑', () => {
+  // 这些断言只读文件内容。一旦有人在这里跑 swift / xcrun，
+  // Windows 与 Linux 上的 npm test 就会挂 —— 而 npm test 是发版流程的一环
+  // （release.mjs 会跑它），影响面不止 macOS 用户。
+  const spawn = 'child' + '_process';
+  const source = read('tests/unit/macos.test.mjs');
+  assert.ok(!source.includes(spawn), `macOS 单测不应引入 ${spawn}`);
+});
+
 test('package.json 暴露 macOS 构建命令', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.ok(pkg.scripts['build:macos'], '缺少 build:macos 脚本');

@@ -9,7 +9,7 @@
  * 用法：
  *   node scripts/build-macos.mjs             # debug 构建
  *   node scripts/build-macos.mjs --release   # release 构建
- *   node scripts/build-macos.mjs --web-only  # 只刷新 .build/web（不起 swift build）
+ *   node scripts/build-macos.mjs --web-only  # 只刷新 dist/web（不起 swift build）
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -81,6 +81,14 @@ async function assembleApp(binary) {
 }
 
 async function main() {
+  // 这个目标只能在 macOS 上构建。其他平台上的 npm install / npm test / npm run build
+  // 都不受影响，只有显式执行 build:macos 才会走到这里 —— 给一句人话，别扔 ENOENT。
+  if (process.platform !== 'darwin') {
+    console.error(`macOS 菜单栏版只能在 macOS 上构建（当前平台：${process.platform}）。`);
+    console.error('浏览器扩展请改用 npm run build。');
+    process.exit(1);
+  }
+
   const modules = await assembleWeb();
   console.log(`引擎资源已就绪：${path.relative(root, webDir)}（lib: ${modules.join(', ')}）`);
 
