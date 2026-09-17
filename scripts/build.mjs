@@ -24,6 +24,15 @@ try {
 mkdirSync(dist, { recursive: true });
 cpSync(source, target, { recursive: true });
 
+// 许可证随分发包一起走（MPL-2.0 要求在分发时附带许可证文本）。
+// 源码树里只有根目录一份 LICENSE，这里复制进扩展目录，避免两处各留一份会不一致。
+const license = join(projectRoot, 'LICENSE');
+if (existsSync(license)) {
+  cpSync(license, join(target, 'LICENSE'));
+} else {
+  console.log('⚠️  没有找到 LICENSE，分发包里将不含许可证文本。');
+}
+
 /**
  * content script 必须打成单文件经典脚本。
  * 原因：Chrome 不保证支持 content_scripts 的 "type": "module"（实测新版 Chrome for Testing
