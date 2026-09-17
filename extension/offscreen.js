@@ -74,11 +74,14 @@ async function handle(op, payload) {
         if (source !== 'auto' && chromeTranslatorAvailable()) {
           try {
             const st = await chromeTranslatorStatus(source, target);
-            if (st.status === 'available') {
+            // available：模型已就绪。downloadable：到达这里的请求都来自用户的
+            // 显式动作（点按钮/选中翻译），视为同意触发 Chrome 模型下载——
+            // 首段会等待下载完成，后续段落即时。自动模式不会走到这里。
+            if (st.status === 'available' || st.status === 'downloadable' || st.status === 'downloading') {
               const translated = await chromeTranslate(text, st.source, st.target);
               return { text: translated, installed: engine.installed(), engine: 'chrome' };
             }
-          } catch { /* 回落 Bergamot */ }
+          } catch { /* Chrome 引擎失败（下载中断/不支持），回落 Bergamot */ }
         }
         const translated = await engine.translate({ text, source, target });
         // 顺带回报本次会话加载过的语言包，落盘由 Service Worker 完成

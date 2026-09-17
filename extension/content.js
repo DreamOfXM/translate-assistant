@@ -632,13 +632,12 @@ async function directionReady(source) {
  * 模型由浏览器管理，已就绪即用。只认 available：downloadable 意味着
  * 要触发浏览器级大模型下载，不能在自动模式里静默发生。
  */
-async function chromeEngineReady(source, target) {
-  if (!chromeTranslatorAvailable()) return false;
+async function chromeEngineStatus(source, target) {
+  if (!chromeTranslatorAvailable()) return { status: 'no-api' };
   try {
-    const st = await chromeTranslatorStatus(source, target);
-    return st.status === 'available';
+    return await chromeTranslatorStatus(source, target);
   } catch {
-    return false;
+    return { status: 'no-api' };
   }
 }
 
@@ -658,7 +657,14 @@ async function autoStart() {
     hoverReader.setBubbleNotice({ text: t('bubble_zh') });
     return;
   }
-  if (!(await directionReady(source)) && !(await chromeEngineReady(source, READ_TARGET_LANGUAGE))) {
+  // Chrome 内建引擎模型尚未下载（downloadable）时：自动模式绝不静默触发下载，
+  // 但按钮会明确告诉用户「点一下就开始下载并翻译」——用户的点击即同意。
+  const chrome = await chromeEngineStatus(source, READ_TARGET_LANGUAGE);
+  if (chrome.status === 'downloadable' || chrome.status === 'downloading') {
+    hoverReader.setBubbleNotice({ text: t('bubble_google') });
+    return;
+  }
+  if (!(await directionReady(source)) && chrome.status !== 'available') {
     // 不静默装死：告诉用户为什么没翻；点击按钮=开始翻译（手动触发允许下载）
     hoverReader.setBubbleNotice({ text: t('bubble_pack') });
     return;
