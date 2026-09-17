@@ -20,23 +20,28 @@ const packsLine = $('packs');
 
 let resultText = '';
 
-const ready = initI18n().then(() => { applyI18n(document); });
-
-langbarRoot.innerHTML = languageBarMarkup({ to: DEFAULT_TARGET_LANGUAGE });
-const langbar = bindLanguageBar(langbarRoot, {
-  onChange: reason => {
-    if (reason === 'swap' && resultText) {
-      // 交换语言时把译文挪回原文框，方便反向翻译
-      sourceArea.value = resultText;
-      langbar.refresh(sourceArea.value);
-      showResult('', t('output_label'));
-      setStatus(t('status_swapped'));
-      return;
+const ready = initI18n().then(() => {
+  applyI18n(document);
+  langbarRoot.innerHTML = languageBarMarkup({ to: DEFAULT_TARGET_LANGUAGE });
+  langbar = bindLanguageBar(langbarRoot, {
+    onChange: reason => {
+      if (reason === 'swap' && resultText) {
+        // 交换语言时把译文挪回原文框，方便反向翻译
+        sourceArea.value = resultText;
+        langbar.refresh(sourceArea.value);
+        showResult('', t('output_label'));
+        setStatus(t('status_swapped'));
+        return;
+      }
+      if (resultText) run();
     }
-    if (resultText) run();
-  }
+  });
+  langbar.refresh('');
+  showResult('', t('output_label'));
+  sourceArea.focus();
 });
-langbar.refresh('');
+
+let langbar = null;   // 语言条在 i18n 就绪后创建（选项名随界面语言）
 
 function setStatus(message, kind = '') {
   statusLine.textContent = message ?? '';
@@ -173,7 +178,4 @@ chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS })
     packsLine.textContent = t('packs_error');
   });
 
-ready.then(() => {
-  showResult('', t('output_label'));
-  sourceArea.focus();
-});
+
