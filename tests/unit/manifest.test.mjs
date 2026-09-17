@@ -53,6 +53,24 @@ test('不暴露不必要的 web accessible resources', () => {
   assert.equal(manifest.web_accessible_resources, undefined);
 });
 
+test('声明了最低 Chrome 版本，且不低于离屏文档 API 的要求', () => {
+  // 没有这一项时，Chrome 会把扩展装到更老的版本上，然后以「启动超时」告终
+  const minimum = Number(manifest.minimum_chrome_version);
+  assert.ok(Number.isInteger(minimum), '应当在清单里声明 minimum_chrome_version');
+  // chrome.offscreen（离屏文档）自 Chrome 109 起提供，是 WASM 引擎的宿主，低于它必挂。
+  // 内建翻译引擎要 138+，但那是可选增强，不该写进这里把旧版用户挡在外面。
+  assert.ok(minimum >= 109, `最低版本 ${minimum} 低于 offscreen API 的要求（109）`);
+});
+
+test('仓库带有 MPL-2.0 许可证文本', () => {
+  const license = readFileSync(resolve(extensionRoot, '../LICENSE'), 'utf8');
+  assert.match(license, /Mozilla Public License Version 2\.0/);
+  assert.match(license, /Exhibit A/, 'MPL-2.0 全文应当包含 Exhibit A');
+  // package.json 与 README 都声明 MPL-2.0，缺了许可证文件就只是口头声明
+  const pkg = JSON.parse(readFileSync(resolve(extensionRoot, '../package.json'), 'utf8'));
+  assert.equal(pkg.license, 'MPL-2.0');
+});
+
 test('WASM 运行时与 worker 文件就位', () => {
   for (const file of [
     'vendor/worker/translator-worker.js',
