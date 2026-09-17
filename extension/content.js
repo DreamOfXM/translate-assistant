@@ -393,13 +393,13 @@ function openReplyPanel({ input = null, text = '' } = {}) {
 
   translateButton.onclick = run;
 
-  fillButton.onclick = () => {
+  fillButton.onclick = async () => {
     if (!translation) return;
     if (!boundInput || !isInputAlive(boundInput)) {
       refreshFillState();
       return;
     }
-    if (writeInput(boundInput, translation)) {
+    if (await writeInput(boundInput, translation)) {
       status(message, t('filled'), 'ok');
     } else {
       status(message, t('fill_rejected'), 'error');
@@ -494,14 +494,14 @@ function openInlineTranslation({ input }) {
     }
   };
 
-  fillButton.onclick = () => {
+  fillButton.onclick = async () => {
     if (!translation) return;
     if (!boundInput || !isInputAlive(boundInput)) {
       status(message, t('input_gone'), 'error');
       fillButton.disabled = true;
       return;
     }
-    if (writeInput(boundInput, translation)) {
+    if (await writeInput(boundInput, translation)) {
       closeCard();
     } else {
       status(message, t('fill_rejected'), 'error');

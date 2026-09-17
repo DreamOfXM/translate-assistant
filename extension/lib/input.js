@@ -51,6 +51,12 @@ function emit(node, type, text) {
   node.dispatchEvent(event);
 }
 
+/** 让出一帧：把「设好选区」和「写入」放到不同的帧里执行 */
+const defaultFrame = () => new Promise(resolve => {
+  if (typeof globalThis.requestAnimationFrame === 'function') globalThis.requestAnimationFrame(() => resolve());
+  else setTimeout(resolve, 0);
+});
+
 const defaultSelectAll = node => {
   try {
     const selection = globalThis.window?.getSelection?.();
@@ -73,17 +79,75 @@ const defaultInsertText = text => {
 };
 
 /**
- * 把文本写入输入框。只在用户明确确认后调用，绝不触发提交或发送。
- * @returns {boolean} 是否写入成功
+ * 合成一次粘贴事件。
+ *
+ * 富文本编辑器普遍自己接管 beforeinput 并把 document.execCommand('insertText')
+ * 挡在外面，但它们都会老老实实处理粘贴事件，所以这是一条保险的兜底写入通道。
  */
-export function writeInput(node, text, { selectAll = defaultSelectAll, insertText = defaultInsertText } = {}) {
+const defaultPasteText = (node, text) => {
+  try {
+    const data = new DataTransfer();
+    data.setData('text/plain', text);
+    const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
+    node.dispatchEvent?.(event);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** 比较两段文本时忽略编辑器自己加的换行和多余空格 */
+const normalize = text => String(text ?? '').replace(/\s+/g, ' ').trim();
+
+/**
+ * 判断译文是否真的进了输入框。
+ *
+ * execCommand('insertText') 在富文本编辑器里会返回 true，即使内容一个字都没变
+ * （框架拦下了 beforeinput 并自行处理）。只看返回值会把「什么都没发生」误报成
+ * 「写入成功」，用户侧就是点了按钮没反应，所以这里一律以内容为准。
+ */
+function landed(after, before, text) {
+  const now = normalize(after);
+  if (now === normalize(text)) return true;                    // 完整替上去了
+  return now !== normalize(before) && now.includes(normalize(text));
+}
+
+/**
+ * 把文本写入输入框。只在用户明确确认后调用，绝不触发提交或发送。
+ *
+ * contenteditable 走异步流程，因为必须先把选区交给框架同步一轮再写入：
+ * Lexical / ProseMirror 这类编辑器拦截 beforeinput，若在同一帧里「全选 + 写入」，
+ * 它会拿着自己上一次的光标位置去处理，结果是整段草稿纹丝不动。
+ *
+ * @returns {Promise<boolean>} 写入是否被编辑器真正接受了
+ */
+export async function writeInput(node, text, {
+  selectAll = defaultSelectAll,
+  insertText = defaultInsertText,
+  pasteText = defaultPasteText,
+  frame = defaultFrame
+} = {}) {
   if (!node) return false;
   try {
     node.focus?.();
 
     if (node.isContentEditable) {
       selectAll(node);
-      return insertText(text) === true;
+      await frame();
+      const before = readInput(node);
+      insertText(text);
+      await frame();
+      const after = readInput(node);
+
+      if (landed(after, before, text)) return true;
+      // 内容已经被动过就别再写第二遍，免得给用户留下一半原文一半译文
+      if (after !== before) return false;
+
+      selectAll(node);
+      await frame();
+      pasteText(node, text);
+      await frame();
+      return landed(readInput(node), before, text);
     }
 
     const setter = findValueSetter(node);

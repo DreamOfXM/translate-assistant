@@ -49,9 +49,9 @@ test('readInput 读取普通输入框与 contenteditable', () => {
   assert.equal(readInput(null), '');
 });
 
-test('writeInput 用 value setter 写入并派发 input / change 事件', () => {
+test('writeInput 用 value setter 写入并派发 input / change 事件', async () => {
   const area = new FakeTextArea();
-  assert.equal(writeInput(area, 'Hello there'), true);
+  assert.equal(await writeInput(area, 'Hello there'), true);
   assert.equal(area.value, 'Hello there');
   assert.equal(area.focused, true, '写入前应先聚焦');
   assert.deepEqual(area.events.map(event => event.type), ['input', 'change']);
@@ -67,40 +67,87 @@ test('findValueSetter 沿原型链找到 value 的 setter', () => {
   assert.equal(findValueSetter(null), null);
 });
 
-test('writeInput 处理 contenteditable 时先选中再插入', () => {
-  let selected = false;
-  let inserted = null;
-  const editable = {
-    isContentEditable: true,
-    innerText: 'old',
-    focus() {},
-    dispatchEvent() { return true; }
-  };
+test('writeInput 处理 contenteditable 时先全选，并等到下一帧才写入', async () => {
+  const trace = [];
+  const editable = { isContentEditable: true, innerText: 'old', focus() {}, dispatchEvent() { return true; } };
 
-  const ok = writeInput(editable, '新内容', {
-    selectAll: () => { selected = true; },
-    insertText: text => { inserted = text; return true; }
+  const ok = await writeInput(editable, '新内容', {
+    selectAll: () => { trace.push('select'); },
+    frame: () => { trace.push('frame'); return Promise.resolve(); },
+    insertText: text => { trace.push('insert'); editable.innerText = text; return true; }
   });
 
   assert.equal(ok, true);
-  assert.equal(selected, true, '应先全选再插入，避免残留旧内容');
-  assert.equal(inserted, '新内容');
+  assert.equal(editable.innerText, '新内容');
+  assert.deepEqual(trace.slice(0, 3), ['select', 'frame', 'insert'],
+    '必须先把选区交给框架同步一轮，再写入');
 });
 
-test('受限编辑器插入失败时返回 false，提示用户改用复制', () => {
-  const editable = { isContentEditable: true, focus() {}, dispatchEvent() { return true; } };
-  const ok = writeInput(editable, 'text', { selectAll: () => {}, insertText: () => false });
+test('同一帧里写入时富文本编辑器会拦下 beforeinput，这正是必须分帧的原因', async () => {
+  // 复刻 Lexical 的行为：编辑器读到的是自己上一次的光标，而不是刚设好的全选，
+  // 于是整段草稿纹丝不动，而 execCommand 依旧返回 true。
+  let inserted = false;
+  const editable = { isContentEditable: true, innerText: '请翻译这段草稿', focus() {}, dispatchEvent() { return true; } };
+
+  const ok = await writeInput(editable, '译文', {
+    selectAll: () => {},
+    frame: () => Promise.resolve(),
+    insertText: () => { inserted = true; return true; },   // 编辑器自称成功
+    pasteText: () => false
+  });
+
+  assert.equal(inserted, true, '确实尝试写入了');
+  assert.equal(ok, false, '内容没变就不能报成功，否则用户看到的就是「点了没反应」');
+});
+
+test('内容纹丝不动时退回粘贴通道', async () => {
+  let pasted = null;
+  const editable = { isContentEditable: true, innerText: '草稿', focus() {}, dispatchEvent() { return true; } };
+
+  const ok = await writeInput(editable, '译文', {
+    selectAll: () => {},
+    frame: () => Promise.resolve(),
+    insertText: () => true,
+    pasteText: (node, text) => { pasted = text; editable.innerText = text; }
+  });
+
+  assert.equal(ok, true);
+  assert.equal(pasted, '译文', '多数编辑器都会处理粘贴事件');
+});
+
+test('写入后内容已经变了但不完整时，不再写第二遍', async () => {
+  let pasteCalls = 0;
+  const editable = { isContentEditable: true, innerText: '草稿', focus() {}, dispatchEvent() { return true; } };
+
+  const ok = await writeInput(editable, '译文', {
+    selectAll: () => {},
+    frame: () => Promise.resolve(),
+    insertText: () => { editable.innerText = '被改写了一半'; return true; },
+    pasteText: () => { pasteCalls += 1; }
+  });
+
+  assert.equal(ok, false);
+  assert.equal(pasteCalls, 0, '已经动过就别再补，免得用户拿到一半原文一半译文');
+});
+
+test('受限编辑器插入失败时返回 false，提示用户改用复制', async () => {
+  const editable = {
+    isContentEditable: true, innerText: 'draft', focus() {}, dispatchEvent() { return true; }
+  };
+  const ok = await writeInput(editable, 'text', {
+    selectAll: () => {}, frame: () => Promise.resolve(), insertText: () => false, pasteText: () => false
+  });
   assert.equal(ok, false);
 });
 
-test('writeInput 出错时返回 false 而不抛异常', () => {
+test('writeInput 出错时返回 false 而不抛异常', async () => {
   const broken = {
     isContentEditable: false,
     focus() { throw new Error('focus 失败'); },
     dispatchEvent() { return true; }
   };
-  assert.equal(writeInput(broken, 'x'), false);
-  assert.equal(writeInput(null, 'x'), false);
+  assert.equal(await writeInput(broken, 'x'), false);
+  assert.equal(await writeInput(null, 'x'), false);
 });
 
 test('isInputAlive 判断输入框是否还在文档里', () => {
