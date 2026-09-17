@@ -67,75 +67,139 @@ test('findValueSetter 沿原型链找到 value 的 setter', () => {
   assert.equal(findValueSetter(null), null);
 });
 
-test('writeInput 处理 contenteditable 时先全选，并等到下一帧才写入', async () => {
+/** 模拟一个 contenteditable：内容可被写入通道改掉 */
+const fakeEditable = (initial = '') => {
+  let text = initial;
+  return {
+    isContentEditable: true,
+    get innerText() { return text; },
+    set textContent(next) { text = next; },
+    focus() {},
+    dispatchEvent() { return true; },
+    setText(next) { text = next; }
+  };
+};
+
+test('writeInput 处理 contenteditable 时先全选、让出一帧，再写入', async () => {
   const trace = [];
-  const editable = { isContentEditable: true, innerText: 'old', focus() {}, dispatchEvent() { return true; } };
+  const editable = fakeEditable('old draft');
 
   const ok = await writeInput(editable, '新内容', {
-    selectAll: () => { trace.push('select'); },
+    selectAll: () => { trace.push('select'); return true; },
+    selectionText: () => 'old draft',
     frame: () => { trace.push('frame'); return Promise.resolve(); },
-    insertText: text => { trace.push('insert'); editable.innerText = text; return true; }
+    insertText: text => { trace.push('insert'); editable.setText(text); return true; },
+    pasteText: () => { trace.push('paste'); },
+    undo: () => { trace.push('undo'); }
   });
 
   assert.equal(ok, true);
   assert.equal(editable.innerText, '新内容');
-  assert.deepEqual(trace.slice(0, 3), ['select', 'frame', 'insert'],
+  assert.deepEqual(trace, ['select', 'frame', 'insert', 'frame'],
     '必须先把选区交给框架同步一轮，再写入');
 });
 
-test('同一帧里写入时富文本编辑器会拦下 beforeinput，这正是必须分帧的原因', async () => {
-  // 复刻 Lexical 的行为：编辑器读到的是自己上一次的光标，而不是刚设好的全选，
-  // 于是整段草稿纹丝不动，而 execCommand 依旧返回 true。
-  let inserted = false;
-  const editable = { isContentEditable: true, innerText: '请翻译这段草稿', focus() {}, dispatchEvent() { return true; } };
+test('默认全选把选区锚在文本节点上，而不是元素上', async () => {
+  // 锚在元素上的选区会被 Lexical 一类编辑器丢掉，译文就会插到光标处变成追加
+  const first = { nodeType: 3, textContent: '第一段' };
+  const last = { nodeType: 3, textContent: '最后一段' };
+  const nodes = [first, last];
+  let index = 0;
+  const walker = {
+    currentNode: null,
+    nextNode() {
+      this.currentNode = nodes[index] ?? null;
+      index += 1;
+      return this.currentNode;
+    }
+  };
+  const anchored = [];
+  const selection = { range: null, removeAllRanges() {}, addRange(range) { this.range = range; } };
 
-  const ok = await writeInput(editable, '译文', {
-    selectAll: () => {},
-    frame: () => Promise.resolve(),
-    insertText: () => { inserted = true; return true; },   // 编辑器自称成功
-    pasteText: () => false
-  });
+  globalThis.document = {
+    createTreeWalker: () => walker,
+    createRange: () => ({
+      setStart: (node, offset) => anchored.push(['start', node, offset]),
+      setEnd: (node, offset) => anchored.push(['end', node, offset])
+    })
+  };
+  globalThis.window = { getSelection: () => selection };
 
-  assert.equal(inserted, true, '确实尝试写入了');
-  assert.equal(ok, false, '内容没变就不能报成功，否则用户看到的就是「点了没反应」');
+  try {
+    const editable = fakeEditable('第一段最后一段');
+    const ok = await writeInput(editable, '译文', {
+      selectionText: () => '第一段最后一段',
+      frame: () => Promise.resolve(),
+      insertText: text => { editable.setText(text); return true; }
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(anchored, [['start', first, 0], ['end', last, last.textContent.length]],
+      '锚点必须是文本节点，编辑器才认得出这是「全选」');
+    assert.equal(selection.range !== null, true, '设好的选区要交给文档');
+  } finally {
+    delete globalThis.document;
+    delete globalThis.window;
+  }
 });
 
-test('内容纹丝不动时退回粘贴通道', async () => {
-  let pasted = null;
-  const editable = { isContentEditable: true, innerText: '草稿', focus() {}, dispatchEvent() { return true; } };
+test('编辑器把选区抢回光标处时，一个字都不写', async () => {
+  // Reddit 的 Lexical 就是这样：DOM 选区被它收掉，此时写下去只会追加在原文后面
+  let wrote = false;
+  const editable = fakeEditable('一段挺长的草稿文字');
 
   const ok = await writeInput(editable, '译文', {
-    selectAll: () => {},
+    selectAll: () => true,
+    selectionText: () => '',
     frame: () => Promise.resolve(),
-    insertText: () => true,
-    pasteText: (node, text) => { pasted = text; editable.innerText = text; }
-  });
-
-  assert.equal(ok, true);
-  assert.equal(pasted, '译文', '多数编辑器都会处理粘贴事件');
-});
-
-test('写入后内容已经变了但不完整时，不再写第二遍', async () => {
-  let pasteCalls = 0;
-  const editable = { isContentEditable: true, innerText: '草稿', focus() {}, dispatchEvent() { return true; } };
-
-  const ok = await writeInput(editable, '译文', {
-    selectAll: () => {},
-    frame: () => Promise.resolve(),
-    insertText: () => { editable.innerText = '被改写了一半'; return true; },
-    pasteText: () => { pasteCalls += 1; }
+    insertText: () => { wrote = true; return true; },
+    pasteText: () => { wrote = true; }
   });
 
   assert.equal(ok, false);
-  assert.equal(pasteCalls, 0, '已经动过就别再补，免得用户拿到一半原文一半译文');
+  assert.equal(wrote, false, '选区都没盖住草稿，写了也只会追加');
 });
 
-test('受限编辑器插入失败时返回 false，提示用户改用复制', async () => {
-  const editable = {
-    isContentEditable: true, innerText: 'draft', focus() {}, dispatchEvent() { return true; }
-  };
+test('insertText 无效时改用粘贴通道，并且同样要求整段替换', async () => {
+  const editable = fakeEditable('old draft');
+  const ok = await writeInput(editable, '译文', {
+    selectAll: () => true,
+    selectionText: () => 'old draft',
+    frame: () => Promise.resolve(),
+    insertText: () => true,                       // 编辑器自称成功，其实内容没动
+    pasteText: (node, text) => { node.setText(text); },
+    undo: () => true
+  });
+  assert.equal(ok, true);
+  assert.equal(editable.innerText, '译文');
+});
+
+test('译文被追加在原文后面不算成功，并把草稿撤回来', async () => {
+  const editable = fakeEditable('原草稿');
+  let undone = 0;
+
+  const ok = await writeInput(editable, '译文', {
+    selectAll: () => true,
+    selectionText: () => '原草稿',
+    frame: () => Promise.resolve(),
+    insertText: () => { editable.setText('原草稿译文'); return true; },   // 只追加
+    pasteText: () => {},
+    undo: () => { undone += 1; editable.setText('原草稿'); return true; }
+  });
+
+  assert.equal(ok, false, '「插在原文旁边」是用户报的那个 bug，不能算填入成功');
+  assert.equal(undone, 1, '写坏了要撤回，别把草稿搅成半成品');
+  assert.equal(editable.innerText, '原草稿');
+});
+
+test('受限编辑器三条通道都无效时返回 false，交给界面提示用户手工粘贴', async () => {
+  const editable = fakeEditable('draft');
   const ok = await writeInput(editable, 'text', {
-    selectAll: () => {}, frame: () => Promise.resolve(), insertText: () => false, pasteText: () => false
+    selectAll: () => true,
+    selectionText: () => 'draft',
+    frame: () => Promise.resolve(),
+    insertText: () => false,
+    pasteText: () => {},
+    undo: () => true
   });
   assert.equal(ok, false);
 });

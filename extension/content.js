@@ -402,7 +402,10 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     if (await writeInput(boundInput, translation)) {
       status(message, t('filled'), 'ok');
     } else {
-      status(message, t('fill_rejected'), 'error');
+      // 自动填入被编辑器挡下了。把译文递到剪贴板，用户自己 ⌘V 就能用 ——
+      // 提示里写着「已复制」，那就必须真的复制成功，所以等复制完再报状态。
+      const copied = await copyText(translation);
+      status(message, copied ? t('fill_rejected') : t('status_copy_failed'), 'error');
     }
   };
 
@@ -504,7 +507,8 @@ function openInlineTranslation({ input }) {
     if (await writeInput(boundInput, translation)) {
       closeCard();
     } else {
-      status(message, t('fill_rejected'), 'error');
+      const copied = await copyText(translation);
+      status(message, copied ? t('fill_rejected') : t('status_copy_failed'), 'error');
     }
   };
 
