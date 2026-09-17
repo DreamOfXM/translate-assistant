@@ -21,6 +21,9 @@ const packsLine = $('packs');
 
 let resultText = '';
 let installing = false;   // 引导卡正在装语言包：这段时间进度条归安装用
+// 本轮翻译实际用的引擎：translateSegment 里逐段记录，结果出来后写在状态行上。
+// 必须声明在模块作用域——它跨 translateSegment 与 run 两个函数。
+let lastEngine = null;
 
 const ready = initI18n().then(() => {
   applyI18n(document);

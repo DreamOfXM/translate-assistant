@@ -200,7 +200,9 @@ function skip(name, reason) {
 }
 
 function watchPage(page, label) {
-  page.on('pageerror', error => consoleErrors.push(`[${label}] ${error.message}`));
+  // 标上「未捕获异常」：末段检查据此一律判为致命。扩展自己抛的 ReferenceError
+  // 就是这样露出来的（popup 点翻译毫无反应，只因控制台里多了一行没被归类的报错）。
+  page.on('pageerror', error => consoleErrors.push(`[${label}] 未捕获异常：${error.message}`));
   page.on('console', message => {
     if (message.type() === 'error') consoleErrors.push(`[${label}] ${message.text()}`);
   });
@@ -621,7 +623,7 @@ try {
   /* 7. 控制台干净（CSP / 模块 / WASM 这三类的报错都在这里暴露） */
   await check('控制台没有 CSP / 模块 / WASM 报错', () => {
     const fatal = consoleErrors.filter(text =>
-      /Content Security Policy|Cannot use import statement|WebAssembly|Uncaught/i.test(text)
+      /未捕获异常|Content Security Policy|Cannot use import statement|WebAssembly|Uncaught/i.test(text)
     );
     if (fatal.length) throw new Error(`\n    ${fatal.slice(0, 5).join('\n    ')}`);
     return `共收集 ${consoleErrors.length} 条日志，无致命错误`;
