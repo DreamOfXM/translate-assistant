@@ -208,16 +208,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 跟输入框那条路完全分开：选区可能压根不在任何输入框里（邮件阅读窗格、
     /// 网页正文都是只读的），所以不能要求「先有一个焦点输入框」。取选区本身
     /// 分三条通道，细节见 `Selection`。
-    private func beginSelection() {
+    private func beginSelection(fallbackFromField: Bool = false) {
         let result = Selection.read()
         guard let capture = result.capture else {
-            hud.notice(result.error ?? "读不到选中的文字。")
+            hud.notice(result.error ?? hintToWholeField)
             return
         }
 
         let text = capture.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            hud.notice("没有选中任何文字。")
+            hud.notice("没有选中任何文字。" + (fallbackFromField ? "" : "　" + hintToWholeField))
             return
         }
         guard text.count <= preferences.maxCharacters else {
@@ -231,7 +231,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         currentAnchor = capture.anchor
 
         let appName = capture.appName ?? "未知应用"
-        hud.show(original: text, status: "\(appName) · \(capture.source.rawValue) · 翻译中…", near: currentAnchor)
+        // 只读的地方（邮件阅读窗格、网页正文）「填入」是写不进去的。与其让用户点了
+        // 才吃一个红字报错，不如一开始就把这件事写在状态行里，并把按钮收起来。
+        let readOnly = capture.readOnlyTarget
+        var status = "\(appName) · \(capture.source.rawValue)"
+        if fallbackFromField { status += " · 输入框是空的，改翻选中的" }
+        if readOnly { status += " · 只读，译文可直接复制" }
+        hud.show(
+            original: text,
+            status: status + " · 翻译中…",
+            near: currentAnchor,
+            canFill: !readOnly
+        )
         Task { await translate(text) }
     }
 
@@ -241,13 +252,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 用户的手可能已经点到别处，再问就该翻错对象了。
         let snapshot = anchor.map { Accessibility.snapshot(of: $0) } ?? Accessibility.snapshot()
         guard let snapshot else {
-            hud.notice("没读到输入框。先把光标点进某个输入框，或选中一段文字后用「翻译选中文字」。")
+            // 读不到输入框时也别一口回绝：用户十有八九是选中了东西才按的键
+            fallbackToSelection(reason: nil)
             return
         }
 
         let text = snapshot.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            hud.notice("这个输入框是空的。")
+            // 空输入框没什么可翻，但用户很可能刚选中了一段文字。
+            // 改翻选区，并且**把模式一起换成选区** ——
+            // 否则「填入」还是会去整框覆写，那是会毁草稿的。
+            fallbackToSelection(reason: "这个输入框是空的，改翻你选中的文字。")
             return
         }
         guard text.count <= preferences.maxCharacters else {
@@ -265,6 +280,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hud.show(original: text, status: "\(appName) · \(channel) · 翻译中…", near: currentAnchor)
 
         Task { await translate(text) }
+    }
+
+    /// 输入框这条路走不通时的去处：改翻选中的文字。
+    ///
+    /// 只在「输入框是空的」或「读不到输入框」时用 —— 这两种情况本来就没有可翻的内容，
+    /// 所以不存在「本来想翻整框、结果翻了别的」的风险。真的没有选区时，
+    /// 提示会直接告诉用户该按哪个键。
+    private func fallbackToSelection(reason: String?) {
+        if let reason { ltTrace("wholeField 落空：\(reason)") }
+        beginSelection(fallbackFromField: true)
+    }
+
+    /// 把「另一个热键是哪个」说清楚。
+    ///
+    /// 两个热键挨着（⌃⌥T / ⌃⌥Y），按错是常事；而原来的提示只说「没有选中任何文字」，
+    /// 用户没法从里面知道该按哪个键。
+    private var hintToWholeField: String {
+        "想翻整个输入框，按 \(preferences.wholeFieldHotKey.description)。"
     }
 
     private func translate(_ text: String) async {
@@ -316,7 +349,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch currentMode {
         case .selection:
             guard let capture = currentSelection else { return }
-            hud.show(original: capture.text, status: "重新翻译…", near: capture.anchor)
+            hud.show(
+                original: capture.text,
+                status: "重新翻译…",
+                near: capture.anchor,
+                canFill: capture.canFillInPlace
+            )
             Task { await translate(capture.text) }
         case .wholeField:
             guard let snapshot = current else { return }

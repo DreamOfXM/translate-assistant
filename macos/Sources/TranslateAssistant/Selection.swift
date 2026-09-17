@@ -50,6 +50,12 @@ enum Selection {
         let element: AXUIElement?
         /// 浮层的锚点（AX 坐标）。只有 AX 通道知道选区在哪
         let anchor: CGRect?
+        /// 目标位置是只读的（邮件阅读窗格、网页正文都是），译文粘不进去。
+        /// 由 `read()` 在返回前统一判定，免得每个通道各判一次。
+        var readOnlyTarget = false
+
+        /// 「填入」在这个位置有没有意义
+        var canFillInPlace: Bool { !readOnlyTarget }
     }
 
     struct ReadResult {
@@ -152,7 +158,7 @@ enum Selection {
 
         if let capture = readViaAttributes(pid: pid, appName: appName) {
             ltTrace("选区：AX 通道命中 \(capture.text.count) 字")
-            return .ok(capture)
+            return finish(capture, pid: pid)
         }
 
         // 通道 2：按「编辑 › 拷贝」。找不到拷贝项才算这条走不通
@@ -164,7 +170,7 @@ enum Selection {
             }
             if let capture = copyViaMenuItem(item, pid: pid, appName: appName) {
                 ltTrace("选区：菜单拷贝拿到 \(capture.text.count) 字")
-                return .ok(capture)
+                return finish(capture, pid: pid)
             }
         }
 
@@ -174,10 +180,19 @@ enum Selection {
         }
         if let capture = copyViaKeystroke(pid: pid, appName: appName) {
             ltTrace("选区：模拟 ⌘C 拿到 \(capture.text.count) 字")
-            return .ok(capture)
+            return finish(capture, pid: pid)
         }
 
         return .no("没有选中任何文字。")
+    }
+
+    /// 收尾：补上「目标位置是不是只读」再交出去。
+    ///
+    /// 只读与否在读取这条路上判一次就够，所以不放在三个通道里各判一遍。
+    private static func finish(_ capture: Capture, pid: pid_t) -> ReadResult {
+        var capture = capture
+        capture.readOnlyTarget = targetKind(pid: pid) == .readOnly
+        return .ok(capture)
     }
 
     /// 要读哪个 App 的选区：指定了就用指定的，否则用此刻的前台应用。

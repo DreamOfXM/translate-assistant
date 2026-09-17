@@ -351,15 +351,26 @@ test('「翻译选中文字」不要求先有一个焦点输入框', () => {
   // 选区可能压根不在输入框里（阅读窗格就是只读的），
   // 所以这条路不能复用「读当前输入框」的实现。
   const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
-  assert.match(delegate, /private func beginSelection\(\)/);
+  assert.match(delegate, /private func beginSelection\(fallbackFromField: Bool = false\)/);
   assert.match(delegate, /let result = Selection\.read\(\)/);
   assert.match(delegate, /case \.selection:\s*\n\s*beginSelection\(\)/);
 
-  const start = delegate.indexOf('private func beginSelection()');
+  const start = delegate.indexOf('private func beginSelection(fallbackFromField');
   const end = delegate.indexOf('private func beginWholeField', start);
   const body = delegate.slice(start, end);
   assert.doesNotMatch(body, /Accessibility\.snapshot/, '选中模式不该再去读输入框');
   assert.match(body, /Selection\.read\(\)/);
+});
+
+test('输入框那条路走不通时，改翻选中的文字', () => {
+  // 两个热键挨着（⌃⌥T / ⌃⌥Y），按错是常事。按了整框键但框里没内容，
+  // 与其丢一句「这个输入框是空的」，不如看看用户是不是选中了东西。
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  const start = delegate.indexOf('private func beginWholeField');
+  const body = delegate.slice(start, delegate.indexOf('private func fallbackToSelection', start));
+  assert.match(body, /fallbackToSelection\(reason: nil\)/, '读不到输入框时也别一口回绝');
+  assert.match(body, /fallbackToSelection\(reason: "这个输入框是空的/, '空输入框要改翻选区');
+  assert.match(delegate, /beginSelection\(fallbackFromField: true\)/);
 });
 
 test('选中模式回填不做整框覆写', () => {

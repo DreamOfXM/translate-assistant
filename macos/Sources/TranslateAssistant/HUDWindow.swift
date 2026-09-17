@@ -21,6 +21,9 @@ final class HUDModel: ObservableObject {
     @Published var warning = ""
     @Published var busy = false
     @Published var isError = false
+    /// 目标位置写不进去时（邮件阅读窗格、网页正文都是只读的）把「填入」收起来。
+    /// 让用户点了才吃一个红字报错，不如一开始就说清这件事。
+    @Published var canFill = true
 
     var onFill: (() -> Void)?
     var onCopy: (() -> Void)?
@@ -52,7 +55,7 @@ final class HUDController {
         model.onClose = onClose
     }
 
-    func show(original: String, status: String, near anchor: CGRect? = nil) {
+    func show(original: String, status: String, near anchor: CGRect? = nil, canFill: Bool = true) {
         self.anchor = anchor
         model.original = original
         model.translated = ""
@@ -60,6 +63,7 @@ final class HUDController {
         model.warning = ""
         model.busy = true
         model.isError = false
+        model.canFill = canFill
         present()
     }
 
@@ -232,7 +236,7 @@ struct HUDView: View {
             Button("复制") { model.onCopy?() }
                 .disabled(model.translated.isEmpty)
             Button("填入") { model.onFill?() }
-                .disabled(model.translated.isEmpty)
+                .disabled(model.translated.isEmpty || !model.canFill)
                 .keyboardShortcut(.defaultAction)
             Button("关闭") { model.onClose?() }
                 .keyboardShortcut(.cancelAction)
