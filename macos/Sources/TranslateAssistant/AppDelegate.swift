@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.title = "译"
         statusItem.button?.toolTip = "翻译助手"
 
+        applyActivationPolicy()
+
         hud.bind(
             onFill: { [weak self] in self?.fillBack() },
             onCopy: { [weak self] in self?.copyTranslation() },
@@ -54,14 +56,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startEngine()
         registerHotKeys()
         rebuildMenu()
-
-        // 第一次运行时把授权对话框弹出来，否则用户只会看到「按了没反应」
-        if !Accessibility.isTrusted && !preferences.didPromptForTrust {
-            preferences.didPromptForTrust = true
-            Accessibility.requestTrust(prompt: true)
-        }
         refreshMenuLater()
         startTrustWatch()
+
+        // 没有窗口的程序，启动完屏幕上什么都不会多出来 —— 第一件事就是说明自己是谁、
+        // 入口在哪。未授权时那个弹窗里直接给「去授权」，不再另外弹系统对话框，
+        // 否则两个框前后脚出现只会让人更懵。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            self?.showWelcomeIfNeeded(triggeredByUser: false)
+        }
+    }
+
+    /// 已经在跑的时候再双击一次 App，系统只会把它激活、不会再开一个实例。
+    /// 没有窗口就没有任何可见反馈，看起来就是「双击没反应」——这里补上一次说明。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showWelcomeIfNeeded(triggeredByUser: true)
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -71,6 +81,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    // MARK: - 让用户找得到这个 App
+
+    /// 菜单栏程序默认不占程序坞。但菜单栏挤的时候系统会把状态项直接挤掉，
+    /// 那时屏幕上根本没有「译」，程序坞图标就是唯一可靠的入口 —— 交给用户选。
+    private func applyActivationPolicy() {
+        NSApp.setActivationPolicy(preferences.showsInDock ? .regular : .accessory)
+    }
+
+    @objc private func menuToggleDock() {
+        preferences.showsInDock.toggle()
+        applyActivationPolicy()
+        rebuildMenu()
+        if preferences.showsInDock {
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func showWelcomeIfNeeded(triggeredByUser: Bool) {
+        // 手动再点一次 App 一定要有反馈，所以那条「启动不再提示」管不到它
+        if !triggeredByUser && preferences.hidesWelcome { return }
+
+        var lines = ["它没有窗口。入口在屏幕最顶部菜单栏最右边的「译」字，程序坞里也有一个图标。", ""]
+        lines.append("· \(preferences.wholeFieldHotKey.description)：翻译光标所在的输入框")
+        lines.append("· \(preferences.selectionHotKey.description)：翻译选中的文字")
+        if !Accessibility.isTrusted {
+            lines.append("")
+            lines.append("还没授权：点「去授权」，在「辅助功能」里勾上本 App。没授权的话热键读不到别的 App 的输入框。")
+        }
+        lines.append("")
+        lines.append("菜单栏挤的时候「译」会被系统整个挤掉，所以程序坞里那个图标是有意留的 —— 双击它就会回到这个提示。")
+
+        let alert = NSAlert()
+        alert.messageText = "翻译助手正在运行"
+        alert.informativeText = lines.joined(separator: "\n")
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "知道了")
+        if !Accessibility.isTrusted {
+            alert.addButton(withTitle: "去授权")
+        }
+        alert.showsSuppressionButton = true
+        alert.suppressionButton?.title = "启动时不再提示"
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+
+        if !Accessibility.isTrusted && response == .alertSecondButtonReturn {
+            Accessibility.requestTrust(prompt: true)
+        }
+        if alert.suppressionButton?.state == .on {
+            preferences.hidesWelcome = true
+        }
+    }
 
     private func startEngine() {
         guard Paths.engineInstalled else {
@@ -276,6 +339,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             restart.target = self
             menu.addItem(restart)
         }
+
+        let dock = NSMenuItem(
+            title: preferences.showsInDock ? "从程序坞隐藏" : "在程序坞显示图标",
+            action: #selector(menuToggleDock),
+            keyEquivalent: ""
+        )
+        dock.target = self
+        menu.addItem(dock)
 
         let engineItem = NSMenuItem(
             title: engineError.map { "引擎：不可用 · \($0)" } ?? "引擎：本地离线（Bergamot）",

@@ -168,3 +168,13 @@ test('package.json 暴露 macOS 构建命令', () => {
   assert.ok(pkg.scripts['build:macos'], '缺少 build:macos 脚本');
   assert.match(pkg.scripts['build:macos'], /build-macos\.mjs/);
 });
+
+test('入口不可见有兜底：再开一次要有反馈，并且能切到程序坞', () => {
+  // 菜单栏程序（LSUIElement）启动后屏幕上什么都不会多出来。用户去访达里双击 App 时，
+  // 系统只是把已经在跑的实例激活，看起来就是「双击没反应」。
+  // 这两条是「让用户找得到入口」的最小集合，别再弄丢。
+  const delegate = read('macos/Sources/TranslateAssistant/AppDelegate.swift');
+  assert.match(delegate, /applicationShouldHandleReopen/, '再次打开 App 必须有可见反馈');
+  assert.match(delegate, /setActivationPolicy/, '菜单栏挤掉状态项时要能切到程序坞');
+  assert.match(read('macos/Sources/TranslateAssistant/Preferences.swift'), /showsInDock/);
+});

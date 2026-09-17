@@ -100,7 +100,8 @@ final class Preferences {
         static let wholeFieldHotKey = "hotKey.wholeField"
         static let selectionHotKey = "hotKey.selection"
         static let maxCharacters = "maxCharacters"
-        static let didPromptForTrust = "didPromptForTrust"
+        static let showsInDock = "showsInDock"
+        static let hidesWelcome = "hidesWelcome"
     }
 
     /// 输入框内容超过这个长度就拒绝翻译：草稿里整篇贴进来的情况很常见，
@@ -125,9 +126,19 @@ final class Preferences {
         set { setCombo(newValue, forKey: Key.selectionHotKey) }
     }
 
-    var didPromptForTrust: Bool {
-        get { defaults.bool(forKey: Key.didPromptForTrust) }
-        set { defaults.set(newValue, forKey: Key.didPromptForTrust) }
+    /// 要不要占一个程序坞图标。**默认占**：菜单栏挤的时候系统会把状态项整个挤掉，
+    /// 那时「译」根本不在屏幕上，程序坞图标就是唯一还看得见的入口。
+    /// 嫌它乱可以在菜单里关掉。
+    var showsInDock: Bool {
+        get { defaults.object(forKey: Key.showsInDock) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Key.showsInDock) }
+    }
+
+    /// 用户勾过「启动时不再提示」之后，启动就不再弹说明；
+    /// 但手动再点一次 App 时仍然要弹（那是他主动在找入口）。
+    var hidesWelcome: Bool {
+        get { defaults.bool(forKey: Key.hidesWelcome) }
+        set { defaults.set(newValue, forKey: Key.hidesWelcome) }
     }
 
     private func combo(forKey key: String) -> KeyCombo? {
