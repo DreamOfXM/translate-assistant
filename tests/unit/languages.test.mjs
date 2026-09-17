@@ -126,3 +126,46 @@ test('detectLanguageByRatio：日语汉字多，必须判成日语而不是中�
   assert.equal(detectLanguageByRatio('この拡張機能はブラウザの中で翻訳を実行します。'), 'ja');
   assert.equal(detectLanguageByRatio('テキストが外部に送信されることはありません。'), 'ja');
 });
+
+test('detectLanguage：网址和邮箱不该左右语言判定', () => {
+  // 葡萄牙语词表里有 com（= with），一个邮箱地址就能喂它 1 分；
+  // 只要再凑一个虚词，整段就会被判成葡语，然后拿去「葡→中」翻出乱码
+  assert.equal(detectLanguage('It sounds really good.\n\n1179102890@qq.com\n\nLet me know.'), 'en');
+  assert.equal(detectLanguage('见 https://example.com/docs 里的说明。'), 'zh');
+});
+
+test('detectLanguage：英语里的常用词不该命中别的语言的词表', () => {
+  // die / den / mit / come / de / op / er / met / van 这些词在英语正文里很常见，
+  // 收进德语、意语、荷兰语词表后，两句英文就能把整段判成荷兰语
+  assert.equal(detectLanguage('I come from a place where the die is cast and the data is met.'), 'en');
+  assert.equal(detectLanguage('The van left and she met them at the op er.'), 'en');
+});
+
+test('detectLanguageByRatio：中文回复 + 英文引用历史要判成中文', () => {
+  // 用户真实场景：回复英文邮件，自己的话是中文，下面挂着整段英文引用历史。
+  // 拉丁字母当然远多于汉字，但用户要翻的是自己写的那句。
+  const draft = [
+    '听起来确实不错',
+    '',
+    '1179102890',
+    '1179102890@qq.com',
+    '',
+    '---- Replied Message ----',
+    'From Francis',
+    '',
+    'share the plan. No meetings, no pressure, we can sort it all right here.',
+    '',
+    'Best of,',
+    'Francis'
+  ].join('\n');
+
+  assert.equal(detectLanguageByRatio(draft), 'zh');
+  // 目标是中文时应当自动换向成「中文 → 英文」，而不是自己译自己
+  assert.deepEqual(resolveDirection(draft, AUTO_DETECT, 'zh'), { source: 'zh', target: 'en', flipped: true });
+});
+
+test('detectLanguage：整段都是引用时退回原文，不会判不出来', () => {
+  // 引用块被清空后样本就空了，此时必须退回原文，否则会直接掉到兜底语言
+  assert.equal(detectLanguageByRatio('> 这是一段被引用的话，仍然应该按中文处理。'), 'zh');
+  assert.equal(detectLanguageByRatio('On Mon, Jan 1 2026 at 10:00, Alice wrote:'), 'en');
+});

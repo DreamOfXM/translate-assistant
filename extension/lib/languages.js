@@ -149,13 +149,61 @@ function countScripts(sample) {
 }
 
 /**
+ * 非正文内容：网址与邮箱地址。
+ *
+ * 它们里面的拉丁字母不代表用户在用哪种语言，却会实打实地污染判定 ——
+ * 「1179102890@qq.com」里的 `com` 会命中葡萄牙语词表（com = with），
+ * 再凑一个虚词就能把一整段中文回复判成葡萄牙语，然后拿去「葡→中」翻译，
+ * 中文输入被当成葡语解析，输出全是乱码。
+ */
+const NON_PROSE = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b[\w-]+\.(?:com|cn|net|org|edu|gov|io|co|me|dev|info|xyz)\b/gi;
+
+/** 抹掉网址与邮箱，只留用户真正写的字 */
+export function stripNonProse(text) {
+  return (text ?? '').replace(NON_PROSE, ' ');
+}
+
+/**
+ * 引用历史/转发内容的起头标记：这些行之后是上一封邮件或转发的原文，
+ * 不是用户此刻写的话，判语言时不该让它们占分量。
+ */
+const QUOTE_MARKERS = [
+  /^\s*-{2,}\s*(?:replied(?:\s+message)?|reply\s+to\s+message|original\s+message|forwarded\s+message)\s*-{2,}\s*$/i,
+  /^\s*on\s+.{5,90}\bwrote:\s*$/i,
+  /^\s*在\s*.{2,60}\s*写道[：:]\s*$/,
+  /^\s*-{2,}\s*(?:转发邮件|原始邮件|回复邮件)\s*-{2,}\s*$/,
+  /^\s*begin\s+forwarded\s+message:?\s*$/i
+];
+
+/** 去掉引用块：`>` 引用行逐行丢，带标记的引用段落从标记处截断 */
+export function stripQuotedHistory(text) {
+  const kept = [];
+  for (const line of (text ?? '').split('\n')) {
+    if (QUOTE_MARKERS.some(pattern => pattern.test(line))) break;
+    if (/^\s*>/.test(line)) continue;
+    kept.push(line);
+  }
+  return kept.join('\n');
+}
+
+/**
+ * 判定用的正文样本：先去引用历史，再抹掉网址邮箱。
+ * 去干净之后如果什么都不剩（整段都是引用），就退回原文 —— 清空样本等于没判。
+ */
+function proseSample(text) {
+  const raw = text ?? '';
+  const stripped = stripNonProse(stripQuotedHistory(raw));
+  return (stripped.trim() ? stripped : raw).slice(0, 2000);
+}
+
+/**
  * 基于字符区间的轻量语言识别。只用于给出建议，用户可以手动覆盖。
  * 不调用任何模型或网络，也没有额外体积。
  * @param {string} text
  * @returns {string} 语言代码
  */
 export function detectLanguage(text) {
-  const sample = (text ?? '').slice(0, 2000);
+  const sample = proseSample(text);
   if (!sample.trim()) return FALLBACK_LANGUAGE;
 
   // 一趟扫描拿到全部脚本计数，再按 SCRIPT_RANGES 的优先级顺序决策
@@ -166,15 +214,20 @@ export function detectLanguage(text) {
   }
 
   // 拉丁字母：按命中次数打分，避免 "is"、"a" 这类通用词把英文误判成别的语言。
-  // 这只是给用户的建议，识别不准时可以在界面上手动改。
+  //
+  // 词表里刻意**不收**「在英语里也是常用词」的虚词：die / den / mit（德语）、
+  // la（法语）、con（西语）、come（意语）、de / op / er / met / van（荷兰语）、
+  // com / para / dos（葡语）。它们大量出现在英文正文、缩写和域名里，
+  // 命中两次就能把整段英文判成荷兰语或葡萄牙语 —— 识别不准时用户可以手动改，
+  // 所以这里宁可保守：宁可给兜底的 en，也不要给一个自信的错误答案。
   const lower = sample.toLowerCase();
   const latinHints = [
-    ['de', /\b(der|die|das|und|ist|nicht|ich|sie|für|mit|ein|eine|den|dem)\b/g],
-    ['fr', /\b(le|la|les|des|est|vous|nous|je|une|pour|avec|sur|du|au)\b/g],
-    ['es', /\b(el|los|las|una|que|para|con|es|por|como|del|señor)\b/g],
-    ['it', /\b(di|della|che|sono|questo|perché|come|gli|una|nel|delle)\b/g],
-    ['nl', /\b(de|het|een|van|niet|jij|met|zijn|voor|op|aan|er)\b/g],
-    ['pt', /\b(uma|para|com|não|você|nós|isso|está|dos|das|pela)\b/g]
+    ['de', /\b(der|das|und|ist|nicht|ich|sie|für|ein|eine|dem)\b/g],
+    ['fr', /\b(le|les|des|est|vous|nous|je|une|pour|avec|sur|du|au)\b/g],
+    ['es', /\b(los|las|una|que|es|por|como|del|señor)\b/g],
+    ['it', /\b(di|della|che|sono|questo|perché|gli|nel|delle)\b/g],
+    ['nl', /\b(het|een|niet|jij|zijn|voor|aan)\b/g],
+    ['pt', /\b(uma|não|você|nós|isso|está|das|pela)\b/g]
   ];
 
   let best = FALLBACK_LANGUAGE;
@@ -198,7 +251,7 @@ export function detectLanguage(text) {
  * 这里改成：汉字占多数才算中文；否则把汉字剔掉再按普通规则判断。
  */
 export function detectLanguageByRatio(text) {
-  const sample = (text ?? '').slice(0, 2000);
+  const sample = proseSample(text);
   // 复用同一趟扫描：原来要跑四次正则（假名、韩文、汉字、拉丁）才能拿到这几个计数
   const counts = countScripts(sample);
   // 假名和韩文必须先于汉字判断：日语里汉字很多，直接比汉字/英文字数会把日语判成中文
