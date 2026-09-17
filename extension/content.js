@@ -557,11 +557,15 @@ async function translateParagraph(text) {
     error.silent = true;
     throw error;
   }
+  let engine = null;
   const outcome = await translateInSegments(
     text,
-    segment => requestTranslation(segment, source, READ_TARGET_LANGUAGE).then(part => part.text)
+    segment => requestTranslation(segment, source, READ_TARGET_LANGUAGE).then(part => {
+      engine = part.engine ?? engine;
+      return part.text;
+    })
   );
-  return outcome.text;
+  return { text: outcome.text, engine };
 }
 
 const hoverReader = createHoverReader({
@@ -570,7 +574,10 @@ const hoverReader = createHoverReader({
     mount();
     return shadow;
   },
-  translateParagraph
+  translateParagraph: text => translateParagraph(text).then(out => {
+    hoverReader?.setBubbleEngine(out.engine);
+    return out.text;
+  })
 });
 
 /**

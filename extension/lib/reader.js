@@ -216,7 +216,8 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
-  let bubbleNotice = null;         // { text, action } 自动翻译没跑时的原因提示（action: 'install'|null）
+  let bubbleNotice = null;
+  let bubbleEngine = null;         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示         // { text, action } 自动翻译没跑时的原因提示（action: 'install'|null）
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
@@ -333,6 +334,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     }
 
     try {
+      // translateParagraph 由 content.js 注入：返回前已把引擎信息上报给按钮
       const translated = await translateParagraph(text);
       // 译文与原文一样（HTML、TypeScript 这类专有名词引擎原样吐回）：
       // 插一个一模一样的节点纯属噪音，静默撤掉
@@ -431,7 +433,12 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
       bubble.textContent = bubbleNotice.text;
       return;
     }
-    bubble.textContent = done ? t('bubble_done', { n: done }) : bubbleIdle();
+    if (done) {
+      const engineTag = bubbleEngine ? ` · ${bubbleEngine}` : '';
+      bubble.textContent = t('bubble_done', { n: done }) + engineTag;
+      return;
+    }
+    bubble.textContent = bubbleIdle();
   };
 
   /** 队列串行消费：翻译本来就是排队执行的，页面本身不能被卡住 */
@@ -581,6 +588,12 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     updateBubble();
   };
 
+  /** 翻译完成后按钮上标注本次使用的引擎（Chrome / Bergamot） */
+  const setBubbleEngine = engine => {
+    bubbleEngine = engine ?? null;
+    updateBubble();
+  };
+
   /** 手动点「双语对照」：整页都翻，不只在视口里的 */
   const runAll = () => {
     liveMode = false;
@@ -694,6 +707,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph }) {
     },
     /** 自动翻译没有跑时的按钮提示（缺语言包/中文页/工具页） */
     setBubbleNotice,
+    setBubbleEngine,
     /** 供测试注入事件 */
     _onMouseOver: onMouseOver,
     _hidePill: hidePill,
