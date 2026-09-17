@@ -133,7 +133,10 @@ const ZH = {
   para_failed: '翻译失败：{msg}',
   error_no_response: '翻译引擎没有响应。',
   status_result_segmented: '已分 {n} 段翻译完成。',
-  status_result_done: '翻译完成。'
+  status_result_done: '翻译完成。',
+  error_updated: '扩展已更新，请刷新页面后重试。',
+  error_connect: '无法连接翻译引擎：{msg}',
+  error_no_response_reload: '翻译引擎没有响应，请重新加载扩展后重试。'
 };
 
 const EN = {
@@ -253,7 +256,10 @@ const EN = {
   para_failed: 'Failed: {msg}',
   error_no_response: 'The translation engine did not respond.',
   status_result_segmented: 'Done in {n} parts.',
-  status_result_done: 'Done.'
+  status_result_done: 'Done.',
+  error_updated: 'The extension was updated — refresh the page and try again.',
+  error_connect: "Couldn't reach the translation engine: {msg}",
+  error_no_response_reload: 'The engine did not respond — reload the extension and try again.'
 };
 
 const DICT = { zh: ZH, en: EN };
