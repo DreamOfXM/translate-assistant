@@ -441,8 +441,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dock.target = self
         menu.addItem(dock)
 
+        // 开关状态要连「为什么它没出现」一起说：没授权时它就是个看不见的按钮，
+        // 用户只会以为功能坏了，而不会想到去上面那行点授权。
+        let pillTitle: String
+        if !preferences.inlinePill {
+            pillTitle = "输入框旁显示「译」按钮：关"
+        } else if Accessibility.isTrusted {
+            pillTitle = "输入框旁显示「译」按钮：开"
+        } else {
+            pillTitle = "输入框旁显示「译」按钮：开（还没授权，暂时不会出现）"
+        }
         let pillItem = NSMenuItem(
-            title: preferences.inlinePill ? "输入框旁显示「译」按钮：开" : "输入框旁显示「译」按钮：关",
+            title: pillTitle,
             action: #selector(menuTogglePill),
             keyEquivalent: ""
         )
@@ -478,7 +488,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quit)
 
         statusItem.menu = menu
-        statusItem.button?.toolTip = "翻译助手"
+        statusItem.button?.toolTip = Accessibility.isTrusted
+            ? "翻译助手"
+            : "翻译助手 · 还没拿到「辅助功能」授权，热键和输入框旁的「译」按钮都不会工作"
     }
 
     private func directionMenu() -> NSMenuItem {
