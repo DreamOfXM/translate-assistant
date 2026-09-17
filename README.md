@@ -25,8 +25,9 @@
 | 📖 | **整页双语对照** | 打开外文网页，译文自动逐段插在原文下方；只翻正文，导航/广告/评论区一律不碰 |
 | 🔍 | **选中即译** | 随便选一段外文，点「翻译选中」，结果卡片就地弹出 |
 | ✍️ | **回复助手** | 在评论框用中文写草稿，一键生成译文，**确认后**才填入，绝不替你发送 |
+| ⚡ | **两个引擎，自动择优** | 浏览器已内置对应语言模型时优先用它（Chrome 138+），否则用扩展自带的离线引擎 |
 | 📴 | **离线可用** | 语言包下载一次后，断网照常翻译 |
-| 🔒 | **隐私优先** | 文本、草稿、译文全部留在你的设备上；唯一的网络请求是下载语言包本身 |
+| 🔒 | **隐私优先** | 文本、草稿、译文都不上传，两套引擎都在设备上完成翻译；网络只用于下载模型 |
 
 <p align="center">
   <img src="docs/images/popup-translate.gif" alt="一键翻译" width="300">
@@ -34,9 +35,21 @@
   <img src="docs/images/selection.gif" alt="选中即译" width="300">
 </p>
 
-## 🌐 语言包：下载一次，离线终生
+## 🌐 翻译引擎：两套都跑在你的设备上
 
-翻译引擎是内嵌在浏览器里的 [bergamot-translator](https://github.com/browsermt/bergamot-translator)（Firefox 翻译同款，MPL-2.0），模型来自 [Mozilla Firefox Translations](https://github.com/mozilla/firefox-translations-models) 的公开模型库（116 个方向，MPL-2.0）。
+扩展内置两套引擎，自动挑当下更合适的那个 —— 用哪套都**不上传文本**。
+
+| | 引擎 | 什么时候用 |
+| --- | --- | --- |
+| ⚡ | **Chrome 内建翻译**<br>（需 Chrome 138+） | 浏览器里已有该语言方向的端上模型时优先使用。模型由 Chrome 自行下载和管理；按 Chrome 官方说明，使用模型时不向 Google 或第三方发送数据 |
+| 📦 | **本地语言包**<br>[bergamot-translator](https://github.com/browsermt/bergamot-translator)（Firefox 翻译同款，MPL-2.0） | 上面那条不可用时兜底；断网、内网、飞行模式也靠它 |
+
+> Chrome 内建模型的下载由浏览器把关：只有你点了「翻译」才会触发，扩展不会在你不点的情况下悄悄下模型。
+> 模型还没就绪时，这一次先用本地语言包翻出来，模型在后台继续下载，之后的段落自然切过去。
+
+## 📥 语言包：下载一次，离线终生
+
+模型来自 Mozilla 的公开 [Firefox Translations](https://github.com/mozilla/firefox-translations-models) 模型库（116 个方向，MPL-2.0）。
 
 <p align="center">
   <img src="docs/images/packs.gif" alt="语言包管理" width="720">
@@ -82,6 +95,7 @@ npm run build
 ## ⚠️ 已知限制
 
 - 模型以英语为中心：中文 ↔ 非英语语言需经英语中转，速度与质量略降
+- Chrome 内建引擎只在 Chrome 138+ 上可用，支持哪些语言方向由 Chrome 决定，而且不能预装到离线环境——不可用时自动回落到本地语言包，功能不受影响
 - WASM 运行时约 5 MB，加载语言包后内存占用会明显上升（换取第二次翻译免冷启动）
 - 语言识别与正文识别均为轻量启发式，个别特殊页面可能误判（宁可多翻，不漏翻）
 - 部分富文本编辑器不接受程序化填入，此时面板会提示改用复制
@@ -107,11 +121,14 @@ extension/
   content.js          页面交互：选中翻译 / 回复面板 / 整页双语 / 悬停翻译
   lib/                可复用模块（i18n / 语言 / 文本 / 引擎桥 / 正文提取…）
   ui/                 popup、语言包管理页、欢迎页
+  icons/              中英两套工具栏图标（源文件为 icon*-src.svg）
+  _locales/           清单里名称与描述的多语言包（中文 / English）
   vendor/             bergamot-translator 0.4.9（MPL-2.0）
 tests/unit/           单元测试（node:test + jsdom）
 tests/e2e/            Playwright 端到端冒烟测试
 scripts/              打包与引擎验证脚本
-docs/                 设计文档与演示素材
+docs/                 商店文案与演示素材
+LICENSE               MPL-2.0 许可证全文
 ```
 
 ## 📄 许可证

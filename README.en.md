@@ -25,8 +25,9 @@
 | 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched |
 | 🔍 | **Select to translate** | Select any foreign text, click the floating pill, get a result card in place |
 | ✍️ | **Reply assistant** | Draft a reply in your language in any comment box, generate a translation, and it's filled in **only after you confirm** — never auto-posted |
+| ⚡ | **Two engines, picked automatically** | Uses the browser's built-in model when it's available (Chrome 138+), otherwise the offline engine bundled with the extension |
 | 📴 | **Offline** | Install a language pack once and translation keeps working without a network |
-| 🔒 | **Privacy first** | Page text, drafts and translations never leave your device; the only network traffic is the pack download itself |
+| 🔒 | **Privacy first** | Page text, drafts and translations are never uploaded — both engines translate on your device; the network is only used to download models |
 
 <p align="center">
   <img src="docs/images/popup-translate.gif" alt="Popup translate" width="300">
@@ -34,9 +35,21 @@
   <img src="docs/images/selection.gif" alt="Select to translate" width="300">
 </p>
 
-## 🌐 Language packs: install once, offline forever
+## 🌐 Translation engines: both run on your device
 
-The engine is [bergamot-translator](https://github.com/browsermt/bergamot-translator) embedded in your browser (the same one Firefox Translations uses, MPL-2.0). Models come from Mozilla's public [Firefox Translations](https://github.com/mozilla/firefox-translations-models) catalog (116 directions, MPL-2.0).
+Two engines ship with the extension, and it picks whichever fits — either way **your text is never uploaded**.
+
+| | Engine | When it's used |
+| --- | --- | --- |
+| ⚡ | **Chrome built-in translation**<br>(Chrome 138+) | Preferred whenever the browser already has the on-device model for that language pair. Chrome downloads and manages the model itself; per Chrome's documentation, no data is sent to Google or third parties when the model is used |
+| 📦 | **Local language packs**<br>[bergamot-translator](https://github.com/browsermt/bergamot-translator) (same engine Firefox Translations uses, MPL-2.0) | Fallback whenever the above isn't available — and the only option offline, on intranets, or in airplane mode |
+
+> Chrome gates the built-in model download behind a user gesture: it only starts when you click **Translate**, never silently.
+> Until the model is ready, that first translation is served by the local language pack while the download continues in the background; later paragraphs switch over automatically.
+
+## 📥 Language packs: install once, offline forever
+
+Models come from Mozilla's public [Firefox Translations](https://github.com/mozilla/firefox-translations-models) catalog (116 directions, MPL-2.0).
 
 <p align="center">
   <img src="docs/images/packs.gif" alt="Language pack manager" width="720">
@@ -73,15 +86,16 @@ The build lands in `dist/translate-assistant` (load it as above) and also produc
 
 ## 🚀 Quick start
 
-1. **Install a pack**: click the extension icon → "语言包管理" → download the direction you need (e.g. en→zh)
+1. **Install a pack**: click the extension icon → **Manage packs** → download the direction you need (e.g. en→zh)
 2. **Read foreign pages**: just open them — translations appear automatically; the floating button collapses everything
-3. **Reply in foreign languages**: hit "翻译回复" in a comment box, write in your language, generate, confirm, fill in
+3. **Reply in foreign languages**: hit **Translate reply** in a comment box, write in your language, generate, confirm, fill in
 
 The UI speaks **中文 / English** — it follows your browser language and can be switched on the welcome page or in the pack manager.
 
 ## ⚠️ Known limitations
 
 - Models are English-centric: non-English pairs relay through English, costing some speed and quality
+- The Chrome built-in engine needs Chrome 138+; which language pairs it covers is Chrome's call, and it cannot be provisioned for offline use — when it isn't available the extension falls back to local language packs, so nothing breaks
 - The WASM runtime is about 5 MB and loaded packs noticeably raise memory (traded for no cold start on the second translation)
 - Language and main-content detection are lightweight heuristics; exotic pages may be misjudged (biased toward translating more, never less)
 - Some rich-text editors reject programmatic input; the panel then suggests copying instead
@@ -107,11 +121,14 @@ extension/
   content.js          page interactions: selection card / reply panel / bilingual page / hover pill
   lib/                reusable modules (i18n / languages / text / engine bridge / content extraction…)
   ui/                 popup, pack manager, welcome page
+  icons/              both toolbar icon sets, zh and en (sources are icon*-src.svg)
+  _locales/           manifest name/description message catalogs (中文 / English)
   vendor/             bergamot-translator 0.4.9 (MPL-2.0)
 tests/unit/           unit tests (node:test + jsdom)
 tests/e2e/            Playwright end-to-end smoke tests
 scripts/              packaging and engine verification
-docs/                 design docs and demo assets
+docs/                 store listing copy and demo assets
+LICENSE               full MPL-2.0 license text
 ```
 
 ## 📄 License
