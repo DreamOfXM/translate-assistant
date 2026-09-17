@@ -23,18 +23,22 @@
 
 ```bash
 npm run build:macos          # 需要 macOS + Swift 工具链（Command Line Tools 即可）
-open macos/dist/TranslateAssistant.app
+npm run start:macos          # 等价于 open macos/dist/TranslateAssistant.app
 ```
 
 启动后菜单栏出现一个「译」字，没有 Dock 图标。
 
+> `start:macos` 刻意**不**包含构建步骤：每次重新构建都会换签名、让已给的辅助功能授权失效。
+> 只启动就别重建。
+
 ### 首次使用：授予辅助功能权限
 
-1. 首次点菜单里的「翻译当前输入框」，App 会弹出系统授权对话框。
-   授权项**不会**立刻出现在列表里，需要手动添加。
-2. 打开「系统设置 → 隐私与安全性 → 辅助功能」。
-3. 点 `+`，选择 `macos/dist/TranslateAssistant.app`，把它勾上。
-4. **重启一次这个 App**（权限变更对已运行的进程不生效）。
+1. 首次启动时 App 会自动弹出系统授权对话框，点「打开系统设置」。
+   如果没弹出来，点菜单栏的「译」→「辅助功能：未授权 —— 点击去授权」。
+2. 在「隐私与安全性 → 辅助功能」里找到 **翻译助手** 并打开开关。
+   列表里没有它时，点左下角 `+`，选择 `macos/dist/TranslateAssistant.app`。
+3. 回到菜单栏。授权状态会在 2 秒内自动刷新（变成「已授权」并弹出提示）。
+   如果仍然显示未授权，点菜单里的「重启应用（授权后如仍无反应就用这个）」。
 
 菜单里会实时显示授权状态。也可以用 `--self-check` 确认：
 

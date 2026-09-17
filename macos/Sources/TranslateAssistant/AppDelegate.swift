@@ -23,8 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = Preferences.shared
 
     private var engineError: String?
+    private var hotKeyError: String?
     private var current: Accessibility.FieldSnapshot?
     private var currentMode: Mode = .wholeField
+    private var trustTimer: Timer?
 
     // MARK: - 启动
 
@@ -59,9 +61,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Accessibility.requestTrust(prompt: true)
         }
         refreshMenuLater()
+        startTrustWatch()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        trustTimer?.invalidate()
         engine.shutdown()
         server.stop()
     }
@@ -84,11 +88,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func registerHotKeys() {
         HotKeyCenter.shared.unregisterAll()
-        HotKeyCenter.shared.register(preferences.wholeFieldHotKey) { [weak self] in
+        hotKeyError = nil
+
+        let whole = HotKeyCenter.shared.register(preferences.wholeFieldHotKey) { [weak self] in
             Task { @MainActor in self?.begin(mode: .wholeField) }
         }
-        HotKeyCenter.shared.register(preferences.selectionHotKey) { [weak self] in
+        let selection = HotKeyCenter.shared.register(preferences.selectionHotKey) { [weak self] in
             Task { @MainActor in self?.begin(mode: .selection) }
+        }
+
+        // 注册失败（被别的软件占用之类）必须让用户看得见，否则表现为「按了没反应」
+        if !whole && !selection {
+            hotKeyError = "两个热键都没注册成功，可能被其它软件占用了"
+        } else if !whole {
+            hotKeyError = "\(preferences.wholeFieldHotKey.description) 没注册成功，可能被别的软件占用"
+        } else if !selection {
+            hotKeyError = "\(preferences.selectionHotKey.description) 没注册成功，可能被别的软件占用"
         }
     }
 
@@ -208,6 +223,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 授权是用户去系统设置里手动勾的，勾完之后这个进程未必立刻生效。
+    /// 盯着状态变化，一旦变已授权就刷新菜单并提示，省掉「为什么还是没反应」。
+    private func startTrustWatch() {
+        guard !Accessibility.isTrusted else { return }
+        trustTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
+            Task { @MainActor in
+                guard let self, Accessibility.isTrusted else { return }
+                timer.invalidate()
+                self.trustTimer = nil
+                self.rebuildMenu()
+                self.hud.notice("辅助功能授权已生效。点进任意输入框，按 \(self.preferences.wholeFieldHotKey.description) 试试。")
+            }
+        }
+    }
+
     func rebuildMenu() {
         let menu = NSMenu()
 
@@ -240,6 +270,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trust.isEnabled = !Accessibility.isTrusted
         menu.addItem(trust)
 
+        // 授权刚勾上时进程内不一定立刻生效，给一个一键重启，省得用户自己去找
+        if !Accessibility.isTrusted {
+            let restart = NSMenuItem(title: "重启应用（授权后如仍无反应就用这个）", action: #selector(menuRestart), keyEquivalent: "")
+            restart.target = self
+            menu.addItem(restart)
+        }
+
         let engineItem = NSMenuItem(
             title: engineError.map { "引擎：不可用 · \($0)" } ?? "引擎：本地离线（Bergamot）",
             action: nil,
@@ -247,6 +284,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         engineItem.isEnabled = false
         menu.addItem(engineItem)
+
+        if let hotKeyError {
+            let item = NSMenuItem(title: "热键：\(hotKeyError)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
 
         menu.addItem(.separator())
         menu.addItem(directionMenu())
@@ -306,6 +349,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuOpenTrust() {
         Accessibility.openSystemSettings()
+    }
+
+    /// 重启自己。先让系统把新实例拉起来，再退出当前这个 —— 反过来的话
+    /// open 可能因为进程已经在退出而失败，用户就白白关掉了一个还在跑的 App。
+    @objc private func menuRestart() {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-n", Bundle.main.bundlePath]
+        do {
+            try task.run()
+        } catch {
+            hud.notice("重启失败：\(error.localizedDescription)。手动退出再打开一次即可。")
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { NSApp.terminate(nil) }
     }
 
     @objc private func menuDirection(_ sender: NSMenuItem) {

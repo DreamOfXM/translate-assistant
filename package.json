@@ -14,6 +14,7 @@
     "typecheck": "npm test",
     "build": "node scripts/build.mjs",
     "build:macos": "node scripts/build-macos.mjs",
+    "start:macos": "open macos/dist/TranslateAssistant.app",
     "test:e2e": "node tests/e2e/smoke.mjs",
     "verify:engine": "node scripts/verify-engine.mjs",
     "release": "node scripts/release.mjs"
