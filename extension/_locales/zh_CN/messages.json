@@ -1,0 +1,12 @@
+{
+  "extName": {
+    "message": "翻译助手",
+    "description": "扩展在 chrome://extensions 里显示的名称"
+  },
+  "extDescription": {
+    "message": "在浏览器本地翻译选中文本和回复草稿，无需 API Key，语言包装好后可离线使用。"
+  },
+  "actionTitle": {
+    "message": "翻译助手"
+  }
+}

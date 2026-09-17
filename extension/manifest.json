@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "翻译助手",
+  "name": "__MSG_extName__",
   "version": "1.1.0",
-  "description": "在浏览器本地翻译选中文本和回复草稿，无需 API Key，语言包装好后可离线使用。",
+  "description": "__MSG_extDescription__",
+  "default_locale": "zh_CN",
   "permissions": ["storage", "contextMenus", "offscreen"],
   "homepage_url": "https://github.com/DreamOfXM/translate-assistant",
   "icons": {
@@ -20,7 +21,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "翻译助手",
+    "default_title": "__MSG_actionTitle__",
     "default_popup": "ui/popup.html"
   },
   "options_page": "ui/options.html",

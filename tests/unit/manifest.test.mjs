@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 
@@ -68,4 +68,34 @@ test('离屏文档与后台脚本都声明为模块', () => {
   const offscreen = readFileSync(join(extensionRoot, 'offscreen.html'), 'utf8');
   assert.match(offscreen, /type="module"/);
   assert.match(offscreen, /offscreen\.js/);
+});
+
+test('清单里的 __MSG_ 占位符在每个语言包里都有文案', () => {
+  const raw = readFileSync(join(extensionRoot, 'manifest.json'), 'utf8');
+  const used = [...new Set([...raw.matchAll(/__MSG_([A-Za-z0-9_]+)__/g)].map(match => match[1]))];
+  // 名称/描述写死中文的话，英文浏览器里 chrome://extensions 一直是「翻译助手」
+  assert.ok(used.length > 0, '清单应当走 __MSG_ 占位符，而不是写死一种语言');
+
+  assert.equal(manifest.default_locale, 'zh_CN');
+  const localesDir = join(extensionRoot, '_locales');
+  assert.ok(existsSync(join(localesDir, manifest.default_locale, 'messages.json')), '缺少默认语言包');
+
+  for (const locale of readdirSync(localesDir)) {
+    const file = join(localesDir, locale, 'messages.json');
+    assert.ok(existsSync(file), `语言包 ${locale} 缺少 messages.json`);
+    const messages = JSON.parse(readFileSync(file, 'utf8'));
+    for (const key of used) {
+      // 少一个 key 会让 Chrome 直接拒绝加载扩展，报「清单文件缺失或不可读取」
+      assert.ok(messages[key]?.message, `${locale} 缺少 ${key}`);
+    }
+  }
+});
+
+test('中英两套工具栏图标都在，四个尺寸齐全', () => {
+  for (const prefix of ['icon', 'icon-en']) {
+    for (const size of [16, 32, 48, 128]) {
+      const file = `icons/${prefix}-${size}.png`;
+      assert.ok(existsSync(join(extensionRoot, file)), `缺少 ${file}`);
+    }
+  }
 });

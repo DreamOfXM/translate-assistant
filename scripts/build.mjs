@@ -47,7 +47,20 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 for (const script of manifest.content_scripts ?? []) delete script.type;
 writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`✅ 已复制扩展文件到 ${target}`);
-console.log(`   名称：${manifest.name} v${manifest.version}`);
+
+// manifest 的 name 是 __MSG_extName__（随浏览器语言变），日志里得自己解出默认语言的名字，
+// 否则会打印成「名称：__MSG_extName__ v1.1.0」
+const extName = (() => {
+  try {
+    const messages = JSON.parse(
+      readFileSync(join(target, '_locales', manifest.default_locale ?? 'zh_CN', 'messages.json'), 'utf8')
+    );
+    return String(manifest.name).replace(/__MSG_([A-Za-z0-9_]+)__/g, (whole, key) => messages[key]?.message ?? whole);
+  } catch {
+    return manifest.name;
+  }
+})();
+console.log(`   名称：${extName} v${manifest.version}`);
 
 const wasm = join(target, 'vendor/worker/bergamot-translator-worker.wasm');
 if (existsSync(wasm)) {

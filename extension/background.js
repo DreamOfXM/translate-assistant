@@ -6,6 +6,7 @@
  */
 
 import { MESSAGES, EVENTS, HOST, validateTranslateRequest, isValidDirection, packKey } from './lib/protocol.js';
+import { initI18n, refreshI18n, t, uiLang } from './lib/i18n.js';
 
 const OFFSCREEN_DOCUMENT = 'offscreen.html';
 const REQUEST_TIMEOUT = 300000;
@@ -304,15 +305,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function setupContextMenu() {
   try {
+    await initI18n();
     await chrome.contextMenus.removeAll();
     await chrome.contextMenus.create({
       id: MENU_ID,
-      title: '翻译选中文本（本地）',
+      title: t('menu_translate_selection'),
       contexts: ['selection']
     });
   } catch {
     /* 没有菜单权限时静默降级，页面内的按钮仍可用 */
   }
+}
+
+/* 界面语言是运行时设置，右键菜单和工具栏却只在安装/启动时定一次：
+   用户改了语言但不重启浏览器的话，它们会一直停在旧语言，所以这里跟着重建。
+   （chrome://extensions 里显示的名称只能由 _locales 按浏览器语言决定，运行时改不了。） */
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes && 'uiLang' in changes) {
+    refreshI18n().then(applyUiLanguage);
+  }
+});
+
+/**
+ * 工具栏图标与悬停提示跟着界面语言走。
+ *
+ * 图标是两套 PNG：中文「译」和英文「T」，同一版式（见 icons/icon*-src.svg）。
+ * manifest 里的 default_title 已走 _locales，这里覆盖一次是为了让它跟
+ * uiLang 而不是浏览器语言——两者可以不一致（浏览器中文 + 界面英文）。
+ */
+const ACTION_ICONS = {
+  zh: { 16: 'icons/icon-16.png', 32: 'icons/icon-32.png', 48: 'icons/icon-48.png', 128: 'icons/icon-128.png' },
+  en: { 16: 'icons/icon-en-16.png', 32: 'icons/icon-en-32.png', 48: 'icons/icon-en-48.png', 128: 'icons/icon-en-128.png' }
+};
+
+async function applyUiLanguage() {
+  await initI18n();
+  const icons = ACTION_ICONS[uiLang()] ?? ACTION_ICONS.zh;
+  try {
+    await chrome.action.setIcon({ path: icons });
+  } catch { /* 图标换不了不影响翻译功能 */ }
+  try {
+    await chrome.action.setTitle({ title: t('action_title') });
+  } catch { /* 同上 */ }
 }
 
 // 首次安装时打开欢迎页（更新不弹，避免打扰老用户）
@@ -323,6 +357,11 @@ chrome.runtime.onInstalled.addListener(details => {
   }
 });
 chrome.runtime.onStartup.addListener(setupContextMenu);
+
+/* 工具栏图标校正放在模块顶层：SW 每次被唤醒都会跑一遍。
+   只挂 onInstalled/onStartup 不够——在 chrome://extensions 点「重新加载」
+   不保证触发这两个事件，图标会停在旧语言。 */
+applyUiLanguage();
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== MENU_ID || !tab?.id || !info.selectionText) return;

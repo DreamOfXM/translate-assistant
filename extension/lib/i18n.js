@@ -13,6 +13,8 @@ const STORAGE_KEY = 'uiLang';
 const ZH = {
   app_name: '翻译助手',
   badge: '本地 · 离线',
+  action_title: '翻译助手',
+  brand_mark: '译',
   // popup
   placeholder: '把要翻译的内容粘进来…',
   translate: '翻译',
@@ -24,6 +26,8 @@ const ZH = {
   onboard_title: '先装语言包，才能开始翻译',
   onboard_sub: '首次下载约 40 MB，之后断网也能用',
   onboard_go: '去安装',
+  onboard_done: '语言包已安装，可以开始翻译了。',
+  onboard_failed: '安装失败：{msg}',
   toggle_auto: '整页双语对照',
   toggle_auto_sub: '打开网页自动逐段翻译，译文插在每段原文下面',
   toggle_page: '右下角悬浮按钮',
@@ -125,12 +129,16 @@ const ZH = {
   bubble_zh: '中文页面 · 无需翻译',
   bubble_pack: '缺语言包 · 点击翻译并下载',
   bubble_google: '首次使用需下载谷歌翻译模型 · 点击开始',
+  bubble_model_downloading: '正在下载谷歌翻译模型 {p}',
   bubble_site: '此站点不自动翻译 · 点击翻正文',
   para_translating: '翻译中…',
   para_copy: '复制',
   para_copied: '已复制',
   para_hide: '收起',
   para_failed: '翻译失败：{msg}',
+  hover_pill: '译',
+  hover_pill_title: '翻译这一段',
+  menu_translate_selection: '翻译选中文本（本地）',
   error_no_response: '翻译引擎没有响应。',
   status_result_segmented: '已分 {n} 段翻译完成。',
   status_result_done: '翻译完成。',
@@ -144,6 +152,8 @@ const ZH = {
 const EN = {
   app_name: 'Translate Assistant',
   badge: 'Local · Offline',
+  action_title: 'Translate Assistant',
+  brand_mark: 'T',
   placeholder: 'Paste text to translate…',
   translate: 'Translate',
   copy: 'Copy',
@@ -154,6 +164,8 @@ const EN = {
   onboard_title: 'Install a language pack to start',
   onboard_sub: 'About 40 MB once — works offline afterwards',
   onboard_go: 'Install',
+  onboard_done: 'Pack installed — you are ready to translate.',
+  onboard_failed: 'Install failed: {msg}',
   toggle_auto: 'Bilingual page',
   toggle_auto_sub: 'Translations appear under each paragraph as you browse',
   toggle_page: 'Floating button',
@@ -250,12 +262,16 @@ const EN = {
   bubble_zh: 'Chinese page — nothing to translate',
   bubble_pack: 'Missing pack — click to translate & download',
   bubble_google: 'First use downloads the Google model — click to start',
+  bubble_model_downloading: 'Downloading the Google model {p}',
   bubble_site: 'Not auto-translated here — click to translate',
   para_translating: 'Translating…',
   para_copy: 'Copy',
   para_copied: 'Copied',
   para_hide: 'Collapse',
   para_failed: 'Failed: {msg}',
+  hover_pill: 'Translate',
+  hover_pill_title: 'Translate this paragraph',
+  menu_translate_selection: 'Translate selection (local)',
   error_no_response: 'The translation engine did not respond.',
   status_result_segmented: 'Done in {n} parts.',
   status_result_done: 'Done.',
@@ -312,6 +328,17 @@ export function setUiLang(lang) {
   return currentLang;
 }
 
+/**
+ * 语言设置被别的上下文改掉之后重新读取。
+ *
+ * 供 service worker 这类「没有页面可刷新」的上下文使用：它得跟着重建右键菜单。
+ * 不能复用 setUiLang——那会把同一个值再写回 storage，触发自己监听的 onChanged。
+ */
+export function refreshI18n() {
+  currentLang = null;
+  return initI18n();
+}
+
 /** 取文案：t('bubble_done', { n: 3 })；缺失 key 回落中文，再缺失回退 key 本身 */
 export function t(key, params) {
   const text = DICT[uiLang()][key] ?? ZH[key] ?? key;
@@ -327,4 +354,7 @@ export function applyI18n(root = document) {
   root.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
   root.querySelectorAll('[data-i18n-placeholder]').forEach(node => { node.placeholder = t(node.dataset.i18nPlaceholder); });
   root.querySelectorAll('[data-i18n-title]').forEach(node => { node.title = t(node.dataset.i18nTitle); });
+  // <html lang> 也得跟着走：三个页面都写死 zh-CN，英文界面下屏幕阅读器会按中文读
+  const html = root.documentElement ?? root;
+  if (html?.setAttribute) html.setAttribute('lang', uiLang() === 'en' ? 'en' : 'zh-CN');
 }
