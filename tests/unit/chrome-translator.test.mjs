@@ -158,7 +158,14 @@ test('create 失败时不留缓存：下一轮还能重试', async () => {
   await new Promise(resolve => setTimeout(resolve, 0)); // 等缓存清理与失败回调那一拍
   assert.equal(chromeTranslatorPrimed('ko', 'zh'), false, '失败的 promise 不能留在缓存里');
   assert.deepEqual(phases, ['downloading', 'failed']);
+  // 失败后本页面熔断：不再反复假下载（用户刷新后才重置）
   await chromeTranslateFirst('y', 'ko', 'zh');
-  assert.equal(created, 2, '第二轮应重新尝试创建');
+  assert.equal(created, 1, '熔断后同一页面不再重试下载');
   assert.match(String(chromeTranslatorLastError()?.message), /user gesture/, '最后失败原因要留档，方便排查');
+
+  // 模型后来就绪（availability 变 available）时，熔断不拦正常翻译
+  globalThis.self.Translator.availability = async () => 'available';
+  globalThis.self.Translator.create = async () => ({ translate: async x => `译:${x}` });
+  const recovered = await chromeTranslateFirst('z', 'ko', 'zh');
+  assert.equal(recovered, '译:z', '模型就绪后熔断应放行');
 });

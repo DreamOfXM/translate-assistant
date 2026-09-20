@@ -129,8 +129,15 @@ function escapeHtml(value) {
 function onModelState({ phase, percent }) {
   // 子框架没有悬浮按钮，进度由翻译卡片自己显示
   if (!hoverReader || IS_SUBFRAME) return;
+  if (phase === 'failed') {
+    // 下载失败：明确说出结论与去向，几秒后交还按钮（本次页面会话已熔断，
+    // 不会每次刷新都再来一遍假下载）
+    hoverReader.setBubbleDownload(t('bubble_model_failed'));
+    setTimeout(() => hoverReader?.setBubbleDownload(null), 4000);
+    return;
+  }
   if (phase !== 'downloading') {
-    hoverReader.setBubbleDownload(null);   // 下好了或失败了，按钮交还给进度与译文
+    hoverReader.setBubbleDownload(null);   // 下好了，按钮交还给进度与译文
     return;
   }
   const p = percent === null ? '' : `${percent}%`;

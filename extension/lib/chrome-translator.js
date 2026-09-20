@@ -135,6 +135,36 @@ export function primeChromeTranslator(source, target, { onProgress } = {}) {
     lastError = error;
     return null;
   }
+
+  // 看门狗：组件下载服务不可用（如 Chrome for Testing 禁用了 component updater，
+  // 或网络黑洞）时 create() 会永远挂着——零进度事件、不 resolve 也不 reject。
+  // 15 秒没等到第一个进度事件就判死：摘缓存、置失败原因，让调用方回落本地引擎，
+  // 而不是让用户对着一动不动的「下载中」干等。
+  const WATCHDOG_MS = 15000;
+  const key2 = key;
+  let sawProgress = false;
+  if (options.monitor) {
+    const rawMonitor = options.monitor;
+    options.monitor = monitor => {
+      rawMonitor(monitor);
+      monitor.addEventListener('downloadprogress', () => { sawProgress = true; });
+    };
+  }
+  const watchdog = setTimeout(() => {
+    if (!sawProgress && translators.get(key2) === promise) {
+      const err = new Error('模型下载无响应（组件服务不可用或网络受阻）');
+      err.name = 'DownloadStalled';
+      lastError = err;
+      translators.delete(key2);
+      promise.catch(() => {});   // 摘掉后真正的失败由看门狗代表
+      promise = Promise.reject(err);
+      translators.set(key2, promise);
+      promise.catch(() => {});   // 防未处理拒绝
+      // 下次调用重新走 create（重新计时），不把这条路永久钉死
+      setTimeout(() => { if (translators.get(key2) === promise) translators.delete(key2); }, 1000);
+    }
+  }, WATCHDOG_MS);
+  promise.finally(() => clearTimeout(watchdog)).catch(() => {});
   translators.set(key, promise);
   promise.catch(error => {
     lastError = error;
@@ -157,6 +187,13 @@ export async function chromeTranslate(text, source, target) {
 }
 
 /* ------------------------------ 用户手势与「优先走内建引擎」 ------------------------------ */
+
+/**
+ * 下载失败的页面级熔断：Chrome 引擎一次失败（挂死/网络断）后，本页面的
+ * 剩余生命周期不再反复尝试——否则每次刷新都弹「正在下载」、每次都失败，
+ * 用户看到的就是永无止境的假下载。刷新/导航后自然重置。
+ */
+let engineDisabled = false;
 
 /** Chrome 的 transient user activation 大约 5 秒；只在用户明确点了翻译按钮时记账 */
 const GESTURE_WINDOW_MS = 5000;
@@ -197,6 +234,15 @@ function withinUserGesture() {
  */
 export async function chromeTranslateFirst(text, source, target, { onModel } = {}) {
   if (source === 'auto' || !chromeTranslatorAvailable()) return null;
+  // 熔断只拦「再触发下载」：模型若已就绪（比如 Chrome 后台自己下完了），
+  // 正常翻译不受影响
+  if (engineDisabled) {
+    try {
+      const ready = await chromeTranslatorStatus(source, target);
+      if (ready.status === 'available') return await chromeTranslate(text, ready.source, ready.target);
+    } catch { /* 熔断期的探测失败就回落本地引擎 */ }
+    return null;
+  }
 
   let status;
   try {
@@ -217,6 +263,7 @@ export async function chromeTranslateFirst(text, source, target, { onModel } = {
         () => onModel?.({ phase: 'ready', percent: 100 }),
         error => {
           lastError = error;
+          engineDisabled = true;   // 熔断：本页面不再反复假下载
           onModel?.({ phase: 'failed', percent: null });
         }
       );
