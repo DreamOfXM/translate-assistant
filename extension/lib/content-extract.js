@@ -41,7 +41,13 @@ const INNER_CHROME_SELECTOR =
  * download 这类正文常用词全部误杀。
  */
 const CHROME_PATTERN =
-  /comment|sidebar|footer|nav|menu|promo|related|share|social|breadcrumb|pagination|widget|sponsor|\bads?\b|\bad[-_]|\badvert|sr-only|visually-hidden|screen-?reader|offscreen/i;
+  /sidebar|footer|nav|menu|promo|related|share|social|breadcrumb|pagination|widget|sponsor|\bads?\b|\bad[-_]|\badvert|sr-only|visually-hidden|screen-?reader|offscreen/i;
+
+/**
+ * 「评论区」命名单独一层：博客/新闻站的评论楼是杂讯，但论坛（Reddit 等）
+ * 评论区就是用户来读的正文——comment 只在正文根之外才算杂讯。
+ */
+const COMMENT_PATTERN = /comment/i;
 
 /** class/id 命中这些词的容器多半是正文，打分时加分 */
 const CONTENT_PATTERN = /article|body|content|entry|hentry|main|page|post|story|text|document/i;
@@ -149,7 +155,12 @@ function hasChromeNaming(el, contentRoot) {
   let steps = 0;
   for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
     if (isDocumentLevel(node)) break;
-    if (CHROME_PATTERN.test(elementName(node))) return true;
+    const name = elementName(node);
+    if (CHROME_PATTERN.test(name)) return true;
+    // comment 命名只在正文根之外算杂讯：论坛帖（Reddit 等）的评论区
+    // 是用户要读的主体内容；节点在正文根之内时不因 comment 命名被拦
+    const inRoot = Boolean(contentRoot) && contentRoot.contains(node);
+    if (!inRoot && COMMENT_PATTERN.test(name)) return true;
     if (contentRoot && node === contentRoot) break;
     if (++steps >= NAMING_WALK_LIMIT) break;
   }

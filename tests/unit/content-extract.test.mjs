@@ -56,6 +56,23 @@ test('语义容器优先：findMainContentRoot 选中 article 正文', () => {
   assert.equal(root, document.querySelector('article.post'), '应把 article 认成正文根');
 });
 
+test('shouldSkipBlock：论坛正文根内的评论区放行（Reddit 场景）', () => {
+  const document = doc(`
+    <main>
+      <div class="post"><p>${prose('The original post body with enough text to anchor the content root')}</p></div>
+      <div id="comment-tree">
+        <shreddit-comment>
+          <div slot="comment"><div class="md"><p id="reply">I started with Arduino kits and free courses.</p></div></div>
+        </shreddit-comment>
+      </div>
+    </main>
+  `);
+  const root = findMainContentRoot(document);
+  assert.ok(root?.contains(document.getElementById('reply')), '评论区应在正文根内');
+  assert.equal(shouldSkipBlock(document.getElementById('reply'), root), false,
+    '正文根内 comment 命名的评论是论坛主体内容，必须翻译');
+});
+
 test('shouldSkipBlock 跳过导航、侧栏、广告、页脚、评论', () => {  const document = articlePage();
   const root = findMainContentRoot(document);
 
