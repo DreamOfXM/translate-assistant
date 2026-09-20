@@ -656,6 +656,22 @@ test('整页双语对照：日文页面不被误判成中文页，按日语方�
   jaPara.remove();
 });
 
+test('Chrome 内置翻译冲突：文本已中文但 html lang=en 时提示恢复原文', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  window.document.documentElement.lang = 'en';
+  for (const id of ['para', 'para2']) {
+    window.document.getElementById(id).textContent = '这是被 Chrome 翻译成中文的页面内容，看起来就像中文页面。';
+  }
+  storageListeners.forEach(listener => listener({ autoBilingual: { newValue: true } }, 'local'));
+  await tick();
+  const bubble = shadow().querySelector('.lt-bubble');
+  assert.equal(bubble.textContent, 'Chrome 已翻译此页 · 恢复原文后可用双语对照',
+    '不应显示「中文页面无需翻译」，而要点明 Chrome 抢先翻译的事实');
+  assert.equal(translateCalls.length, 0, '被 Chrome 翻过的页面不再叠翻译');
+  window.document.documentElement.lang = '';
+});
+
 test('整页双语对照：中文网页不自动翻译', async () => {
   reset();
   installedPacks = ['en-zh'];

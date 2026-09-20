@@ -668,6 +668,29 @@ function pageSample() {
  *  判定范围优先取正文根而不是整页采样：GitHub 的界面全是英文，中文 README 页
  *  若按 body 采样会被误判成英文页，整页对照就会绕过中文正文、去翻那些零星的
  *  英文界面词——正是「分不清中英文，见到单词就翻」的观感来源。 */
+/**
+ * 页面是否已被 Chrome 内置翻译（或任何整页替换式翻译）翻成了中文。
+ *
+ * Chrome 的「提供翻译此页」会在我们之前把整页文本替换成中文，而
+ * <html lang> / meta 仍标着原始语言。此时：
+ *   - 我们的页面语言检测只看文本，会得出「中文页面」，按钮显示
+ *     「无需翻译」，用户看来就是两个翻译功能打架、界面一团乱；
+ *   - 双语对照插在中文机器译文下面，质量叠加劣化。
+ * 判据：文本语言是中文，且文档声明的语言是外语。
+ */
+function translatedByChrome() {
+  const declared = (document.documentElement?.lang
+    ?? document.querySelector('meta[http-equiv="content-language"]')?.content
+    ?? '').trim().toLowerCase();
+  if (!declared || declared.startsWith('zh')) return false;
+  // 文档声明是外语，而正文已是中文：整页被替换过。调用点已在页面语言
+  // 判定为中文之后，这里只需排除「外文页面夹零星汉字导航词」的误伤，
+  // 阈值取一个中等量级即可（不能用 MIN_CJK_FOR_ZH_PAGE 的 800，
+  // 那是给无正文根的兜底路径设的，小页面够不着）。
+  const cjk = (String(document.body?.textContent ?? '').match(/[㐀-䶿一-鿿]/g) ?? []).length;
+  return cjk >= 40;
+}
+
 function pageLanguage() {
   // 日语守卫（必须最先做）：日语书写大量使用汉字，按汉字数量判「中文页」
   // 会把日文页面误判成中文而拒绝翻译。页面假名达到这个量级即可断定是日语。
@@ -733,6 +756,12 @@ async function autoStart() {
   if (!source) return;
   // 中文网页对中文读者没有翻译价值；把原因说在按钮上，别让用户猜
   if (source === READ_TARGET_LANGUAGE) {
+    // 文本已是中文但文档声明是外语：Chrome 内置翻译抢先整页翻过了。
+    // 明确说出来并给出路（恢复原文），别让用户看见两个翻译打架。
+    if (translatedByChrome()) {
+      hoverReader.setBubbleNotice({ text: t('bubble_chrome_translated') });
+      return;
+    }
     hoverReader.setBubbleNotice({ text: t('bubble_zh') });
     return;
   }
