@@ -127,6 +127,20 @@ test('detectLanguageByRatio：日语汉字多，必须判成日语而不是中�
   assert.equal(detectLanguageByRatio('テキストが外部に送信されることはありません。'), 'ja');
 });
 
+test('detectLanguageByRatio：零星非拉丁字符不该抢走整页判定', () => {
+  // 现场：英文维基百科正文里挂着一个跨语言链接「فارسی」，按「出现过就算」
+  // 整页判成阿拉伯语 → ar→zh 的本地语言包不存在 → 自动整页对照早退，
+  // 用户看到的是「一个英文页面死活不翻」。韩文同理（「한국어」）。
+  const article = 'Local-first software is a software engineering approach in which an '
+    + 'application stores its data on the user’s own device, so it keeps working offline '
+    + 'and the user stays in control of their own information. فارسی 한국어';
+  assert.equal(detectLanguageByRatio(article), 'en');
+  assert.equal(detectLanguage(article), 'en');
+  // 反过来：真的以外文为主的样本不能被这条规则抹掉
+  assert.equal(detectLanguageByRatio('مرحبا بالعالم، هذا نص عربي'), 'ar');
+  assert.equal(detectLanguageByRatio('안녕하세요, 이 문장은 한국어입니다'), 'ko');
+});
+
 test('detectLanguage：网址和邮箱不该左右语言判定', () => {
   // 葡萄牙语词表里有 com（= with），一个邮箱地址就能喂它 1 分；
   // 只要再凑一个虚词，整段就会被判成葡语，然后拿去「葡→中」翻出乱码

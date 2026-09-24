@@ -206,11 +206,17 @@ export function detectLanguage(text) {
   const sample = proseSample(text);
   if (!sample.trim()) return FALLBACK_LANGUAGE;
 
-  // 一趟扫描拿到全部脚本计数，再按 SCRIPT_RANGES 的优先级顺序决策
+  // 一趟扫描拿到全部脚本计数，再按 SCRIPT_RANGES 的优先级顺序决策。
+  //
+  // 判据是「该脚本的字符数多过拉丁字母」，不是「出现过就算」——跟下面汉字用的
+  // 是同一条线。真实触发场景：英文维基百科正文里挂着一个语言切换链接「فارسی」，
+  // 按「出现过就算」整页被判成阿拉伯语，方向变成 ar→zh，本地语言包没有这一对，
+  // 自动整页对照直接早退，用户看到的就是「一个英文页面死活不翻」。
   const counts = countScripts(sample);
   if (!counts) return 'ja'; // 扫描途中命中假名，已提前定论
+  const latinCount = counts[LATIN_INDEX];
   for (let index = 0; index < SCRIPT_RANGES.length; index++) {
-    if (counts[index] > 0) return SCRIPT_RANGES[index][0];
+    if (counts[index] > latinCount) return SCRIPT_RANGES[index][0];
   }
 
   // 拉丁字母：按命中次数打分，避免 "is"、"a" 这类通用词把英文误判成别的语言。
@@ -256,7 +262,9 @@ export function detectLanguageByRatio(text) {
   const counts = countScripts(sample);
   // 假名和韩文必须先于汉字判断：日语里汉字很多，直接比汉字/英文字数会把日语判成中文
   if (!counts) return 'ja'; // 扫描途中命中假名，已提前定论
-  if (counts[HANGUL_INDEX] > 0) return 'ko';
+  // 韩文同样要赢过拉丁字母才算数：英文站的语言切换里挂一个「한국어」
+  // 就会把整页判成韩语，方向错到本地语言包对不上，页面直接不翻（同 detectLanguage）
+  if (counts[HANGUL_INDEX] > counts[LATIN_INDEX]) return 'ko';
 
   const kanji = counts[KANJI_INDEX];
   const latin = counts[LATIN_INDEX];
