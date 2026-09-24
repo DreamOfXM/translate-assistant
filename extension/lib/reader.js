@@ -51,53 +51,44 @@ const PARA_STYLES = `
   width: fit-content;
   max-width: 100%;
   margin: 8px 0 4px;
-  padding: 8px 12px 8px 14px;
-  border-radius: 8px;
-  background: rgba(56, 189, 248, .13);
-  color: #0F172A;
+  padding: 10px 14px;
+  border-radius: 20px;
+  /* 整块淡蓝填充就是「这是译文」的唯一标记，不再叠左竖线。
+     必须是半透明：这段要插进任意宿主网页，写死 #E8F0FE 在有色背景上会脏。 */
+  background: rgba(26, 115, 232, .10);
+  color: #202124;
   font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   animation: lt-para-in 200ms ease-out;
-}
-.lt-wrap::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 3px;
-  bottom: 3px;
-  width: 2px;
-  border-radius: 999px;
-  /* 比品牌渐变浅一档：竖线只是轻提示，不该抢正文 */
-  background: linear-gradient(180deg, #7DD3FC, #5EEAD4);
 }
 @keyframes lt-para-in {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
 }
 .lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
-.lt-para-text.lt-para-error { color: #DC2626; }
+.lt-para-text.lt-para-error { color: #D93025; }
 /* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
    浮在节点右上角的小胶囊（沉浸式翻译同款位置），不占布局、不把短节点撑高 */
 .lt-para-ops {
   position: absolute;
-  top: 5px;
-  right: 6px;
+  top: 6px;
+  right: 8px;
   display: flex;
-  gap: 8px;
-  padding: 2px 8px;
+  gap: 4px;
+  padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, .94);
-  box-shadow: 0 1px 5px rgba(15, 23, 42, .16);
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 1px 3px rgba(60, 64, 67, .20), 0 1px 3px 1px rgba(60, 64, 67, .10);
   opacity: 0;
   transition: opacity 150ms;
 }
 .lt-wrap:hover .lt-para-ops,
 .lt-wrap:focus-within .lt-para-ops { opacity: 1; }
 .lt-para-ops button {
-  border: 0; background: transparent; padding: 2px 6px;
-  color: #0284C7; font-size: 12px; font-weight: 600; cursor: pointer; border-radius: 6px; font-family: inherit;
+  border: 0; background: transparent; padding: 3px 8px;
+  color: #1A73E8; font-size: 12px; font-weight: 500; cursor: pointer; border-radius: 999px; font-family: inherit;
   transition: background 150ms;
 }
-.lt-para-ops button:hover { background: rgba(56, 189, 248, .15); }
+.lt-para-ops button:hover { background: rgba(26, 115, 232, .10); }
 /* .lt-bubble（右下角悬浮按钮）的样式在 lib/panel-styles.js——它挂在主 shadow root，
    这里只管段落译文节点自己的样子 */
 @media (prefers-reduced-motion: reduce) {
@@ -106,14 +97,11 @@ const PARA_STYLES = `
 }
 /* 暗色适配由 JS 检测页面真实背景后加 host.lt-dark（见 isDarkBackground），
    不用 prefers-color-scheme：页面主题（暗色站点）与系统偏好经常不一致 */
-:host(.lt-dark) .lt-wrap { background: rgba(56, 189, 248, .14); color: #E2E8F0; }
-:host(.lt-dark) .lt-wrap::before {
-  background: linear-gradient(180deg, #0EA5E9, #0D9488);
-}
-:host(.lt-dark) .lt-para-ops { background: rgba(15, 23, 42, .92); box-shadow: 0 1px 5px rgba(0, 0, 0, .45); }
-:host(.lt-dark) .lt-para-ops button { color: #7DD3FC; }
-:host(.lt-dark) .lt-para-ops button:hover { background: rgba(56, 189, 248, .14); }
-:host(.lt-dark) .lt-para-text.lt-para-error { color: #F87171; }
+:host(.lt-dark) .lt-wrap { background: rgba(138, 180, 248, .16); color: #E8EAED; }
+:host(.lt-dark) .lt-para-ops { background: rgba(32, 33, 36, .96); box-shadow: 0 1px 3px rgba(0, 0, 0, .5); }
+:host(.lt-dark) .lt-para-ops button { color: #8AB4F8; }
+:host(.lt-dark) .lt-para-ops button:hover { background: rgba(138, 180, 248, .16); }
+:host(.lt-dark) .lt-para-text.lt-para-error { color: #F28B82; }
 `;
 
 function element(tag, className, properties = {}) {

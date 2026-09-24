@@ -6,6 +6,11 @@
  *
  * 配色、圆角、阴影与 ui/tokens.css 保持同步（那里是唯一权威来源）；
  * Shadow DOM 里引用不到外部 CSS 变量，只能内嵌同样的值。
+ * 改动任一处颜色时，tokens.css / panel-styles.js / reader.js 的 PARA_STYLES 三处要一起改。
+ *
+ * 视觉语言（docs/design-history/r03/s02-google.html）：单一实色蓝 #1A73E8、
+ * 发丝边 #DADCE0、译文块浅蓝填充 #E8F0FE、容器 20/24 圆角、动作全药丸、
+ * 阴影只有中性灰两档，**不用渐变、不用彩色投影**。
  */
 export const PANEL_STYLES = `
 :host { all: initial; }
@@ -20,133 +25,127 @@ export const PANEL_STYLES = `
   width: min(420px, calc(100vw - 32px));
   max-height: min(72vh, 640px);
   overflow: auto;
-  padding: 18px 16px 16px;
-  border: 1px solid #E2E8F0;
-  border-radius: 16px;
+  padding: 16px;
+  border: 0;
+  border-radius: 24px;
   background: #fff;
-  color: #0F172A;
+  color: #202124;
   font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, .08), 0 12px 36px rgba(15, 23, 42, .14);
+  box-shadow: 0 1px 3px rgba(60, 64, 67, .15), 0 4px 8px 3px rgba(60, 64, 67, .10);
   animation: lt-card-in 160ms ease-out;
 }
 @keyframes lt-card-in {
   from { opacity: 0; transform: translateY(6px) scale(.985); }
   to { opacity: 1; transform: none; }
 }
-.lt-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
-}
 .lt-card * { box-sizing: border-box; font-family: inherit; }
 
 .lt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
-.lt-title { font-size: 15px; font-weight: 700; margin: 0; }
-.lt-sub { margin: 2px 0 0; font-size: 12px; color: #64748B; }
-.lt-close { border: 0; background: transparent; font-size: 20px; line-height: 1; color: #64748B; cursor: pointer; padding: 2px 6px; border-radius: 8px; transition: background 150ms, color 150ms; }
-.lt-close:hover { background: #F1F5F9; color: #0F172A; }
+.lt-title { font-size: 16px; font-weight: 500; margin: 0; }
+.lt-sub { margin: 3px 0 0; font-size: 12px; color: #5F6368; }
+.lt-close { border: 0; background: transparent; font-size: 18px; line-height: 1; color: #5F6368; cursor: pointer; padding: 5px; border-radius: 50%; transition: background 150ms, color 150ms; }
+.lt-close:hover { background: #F1F3F4; color: #202124; }
 
-.lt-note { margin: 0 0 12px; padding: 9px 11px; border-radius: 10px; background: #FEF3C7; font-size: 12px; color: #78350F; }
+.lt-note { margin: 0 0 12px; padding: 12px 16px; border-radius: 20px; background: #FEF3C7; font-size: 12px; color: #78350F; }
 
-.lt-field { display: block; margin-bottom: 10px; font-size: 12px; font-weight: 600; color: #64748B; }
+.lt-field { display: block; margin-bottom: 10px; font-size: 11px; font-weight: 500; color: #80868B; }
 .lt-field > textarea {
   display: block;
   width: 100%;
   margin-top: 5px;
-  padding: 9px 11px;
-  border: 1px solid #E2E8F0;
-  border-radius: 12px;
+  padding: 12px 16px;
+  border: 1px solid #DADCE0;
+  border-radius: 20px;
   background: #fff;
-  color: #0F172A;
+  color: #202124;
   font-size: 14px;
   font-weight: 400;
   min-height: 92px;
   resize: vertical;
   transition: border-color 150ms, box-shadow 150ms;
 }
-.lt-field > textarea:focus { outline: none; border-color: #0EA5E9; box-shadow: 0 0 0 3px rgba(56, 189, 248, .18); }
-.lt-field > textarea[readonly] { background: #F8FAFC; color: #475569; }
+/* Material 的聚焦态是「发丝边加粗到 2px」，不是外扩光晕 */
+.lt-field > textarea:focus { outline: none; border-color: #1A73E8; box-shadow: inset 0 0 0 1px #1A73E8; }
+.lt-field > textarea[readonly] { background: #F8F9FA; color: #5F6368; }
 
-/* 语言条：平时就是一行文字（自动检测 · 英语 → 中文），点开才需要选 */
+/* 语言条：平时就是一行文字（自动检测 · 英语 → 中文），点开才需要选。
+   源语言是灰字，目标语言才是当前生效的选择——蓝字 + 2px 下划条。 */
 .lt-langbar { display: flex; align-items: center; gap: 2px; margin: 0 0 12px; }
 .lt-langbar select {
   appearance: none;
   -webkit-appearance: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: 8px 8px 0 0;
   background: transparent;
-  color: #0284C7;
+  color: #5F6368;
   font-size: 13px;
-  font-weight: 600;
-  padding: 5px 6px;
+  font-weight: 500;
+  padding: 5px 8px;
   cursor: pointer;
   max-width: 170px;
   text-overflow: ellipsis;
-  transition: background 150ms;
+  transition: background 150ms, color 150ms;
 }
-.lt-langbar select:hover { background: #F1F5F9; }
-.lt-langbar select:focus-visible { outline: 2px solid #0EA5E9; outline-offset: 1px; }
-.lt-arrow { padding: 0 2px; color: #94A3B8; font-size: 13px; }
+.lt-langbar select:hover { background: #F1F3F4; color: #202124; }
+.lt-langbar select:focus-visible { outline: 2px solid #1A73E8; outline-offset: 1px; }
+.lt-langbar .lt-target { color: #1A73E8; box-shadow: inset 0 -2px 0 #1A73E8; }
+.lt-arrow { padding: 0 2px; color: #80868B; font-size: 13px; }
 .lt-swap {
   border: 0;
-  border-radius: 8px;
+  border-radius: 50%;
   background: transparent;
-  color: #64748B;
+  color: #5F6368;
   font-size: 14px;
   line-height: 1;
   padding: 5px 7px;
   cursor: pointer;
   transition: background 150ms, color 150ms;
 }
-.lt-swap:hover { background: #F1F5F9; color: #0284C7; }
+.lt-swap:hover { background: #F1F3F4; color: #202124; }
 
 .lt-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .lt-button {
-  padding: 9px 14px;
+  padding: 9px 16px;
   border: 0;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
+  border-radius: 999px;
+  background: #1A73E8;
   color: #fff;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(14, 165, 233, .3);
-  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, .10), 0 1px 3px 1px rgba(60, 64, 67, .06);
+  transition: background 150ms, box-shadow 150ms;
 }
-.lt-button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
-.lt-button:active:not(:disabled) { transform: translateY(0); box-shadow: 0 1px 4px rgba(14, 165, 233, .3); }
-.lt-button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+.lt-button:hover:not(:disabled) { background: #174EA6; box-shadow: 0 1px 3px rgba(60, 64, 67, .15), 0 4px 8px 3px rgba(60, 64, 67, .10); }
+.lt-button:active:not(:disabled) { box-shadow: 0 1px 2px rgba(60, 64, 67, .10), 0 1px 3px 1px rgba(60, 64, 67, .06); }
+.lt-button:disabled { background: #F1F3F4; color: #80868B; cursor: not-allowed; box-shadow: none; }
 .lt-button.ghost {
   background: #fff;
-  color: #0F172A;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .05);
+  color: #5F6368;
+  border: 1px solid #DADCE0;
+  box-shadow: none;
 }
-.lt-button.ghost:hover:not(:disabled) { background: #F1F5F9; filter: none; }
-.lt-button.primary-fill { background: linear-gradient(135deg, #10B981, #059669); box-shadow: 0 4px 14px rgba(16, 185, 129, .3); }
-.lt-button.primary-fill:hover:not(:disabled) { filter: brightness(1.05); }
+.lt-button.ghost:hover:not(:disabled) { background: #F1F3F4; color: #202124; }
+.lt-button.primary-fill { background: #188038; }
+.lt-button.primary-fill:hover:not(:disabled) { background: #137333; }
 
-.lt-output { margin-top: 14px; padding: 12px; border-radius: 14px; background: rgba(56, 189, 248, .12); }
-.lt-label { font-size: 11px; font-weight: 700; letter-spacing: .4px; color: #0284C7; }
-.lt-text { white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; font-size: 15px; min-height: 1.5em; }
-.lt-text.placeholder { color: #94A3B8; }
+/* 译文块靠「整块填色」和原文分开，不再叠一条分隔线 */
+.lt-output { margin-top: 14px; padding: 12px 16px; border-radius: 20px; background: #E8F0FE; }
+.lt-label { font-size: 11px; font-weight: 500; letter-spacing: .2px; color: #80868B; }
+.lt-text { white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; font-size: 15px; line-height: 1.6; min-height: 1.5em; }
+.lt-text.placeholder { color: #80868B; }
 
-.lt-bar { height: 6px; margin-top: 12px; border-radius: 999px; background: #E2E8F0; overflow: hidden; }
-.lt-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%); border-radius: 999px; transition: width 250ms ease; }
+.lt-bar { height: 3px; margin-top: 12px; border-radius: 999px; background: #D3E3FD; overflow: hidden; }
+.lt-bar > i { display: block; height: 100%; width: 0; background: #1A73E8; border-radius: 999px; transition: width 250ms ease; }
 
-.lt-status { margin: 12px 0 0; font-size: 12px; color: #64748B; min-height: 1em; }
-.lt-status.error { color: #DC2626; }
-.lt-status.ok { color: #059669; }
+.lt-status { margin: 12px 0 0; font-size: 12px; color: #5F6368; min-height: 1em; }
+.lt-status.error { color: #D93025; }
+.lt-status.ok { color: #188038; }
 
 /* 就地译文条：输入框已有草稿时的紧凑形态，替代完整面板 */
-.lt-card.lt-inline { width: auto; max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; }
+.lt-card.lt-inline { width: auto; max-width: min(420px, calc(100vw - 32px)); padding: 14px 16px; }
 .lt-inline-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
-.lt-inline-lang { font-size: 12px; font-weight: 700; color: #0284C7; letter-spacing: .3px; }
+.lt-inline-lang { font-size: 12px; font-weight: 500; color: #1A73E8; letter-spacing: .2px; }
 .lt-card.lt-inline .lt-result { margin: 2px 0 0; font-size: 14px; }
 .lt-card.lt-inline .lt-actions { margin-top: 10px; align-items: center; }
 .lt-card.lt-inline .lt-bar { margin-top: 8px; }
@@ -155,9 +154,9 @@ export const PANEL_STYLES = `
   border: 0;
   background: none;
   padding: 0;
-  color: #0284C7;
+  color: #1A73E8;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   margin-left: auto;
 }
@@ -168,16 +167,16 @@ export const PANEL_STYLES = `
   z-index: 2147483647;
   border: 0;
   border-radius: 999px;
-  padding: 9px 15px;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
+  padding: 9px 16px;
+  background: #1A73E8;
   color: #fff;
-  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 6px 20px rgba(14, 165, 233, .35);
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, .15), 0 4px 8px 3px rgba(60, 64, 67, .10);
   cursor: pointer;
-  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+  transition: background 150ms, box-shadow 150ms;
 }
-.lt-float:hover { transform: translateY(-1px); filter: brightness(1.05); }
-.lt-float:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(14, 165, 233, .3); }
+.lt-float:hover { background: #174EA6; }
+.lt-float:active { background: #1A73E8; box-shadow: 0 1px 2px rgba(60, 64, 67, .10), 0 1px 3px 1px rgba(60, 64, 67, .06); }
 
 /* 悬停阅读：段落右上角的「译」/「Translate」胶囊。
    宽度不写死：中文是单个字（min-width 兜成 28px 圆形），英文是一个单词，
@@ -191,15 +190,15 @@ export const PANEL_STYLES = `
   padding: 0 6px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
+  background: #1A73E8;
   color: #fff;
   white-space: nowrap;
-  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 3px 12px rgba(14, 165, 233, .4);
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, .20), 0 1px 3px 1px rgba(60, 64, 67, .10);
   cursor: pointer;
-  transition: transform 150ms, filter 150ms;
+  transition: background 150ms, transform 150ms;
 }
-.lt-hover-pill:hover { transform: scale(1.1); filter: brightness(1.05); }
+.lt-hover-pill:hover { background: #174EA6; transform: scale(1.06); }
 
 /* 右下角悬浮按钮（整页双语对照）。它挂在主 shadow root 里，样式必须在这里；
    之前只写在段落节点的 PARA_STYLES 里，bubble 一直是无样式裸按钮。 */
@@ -211,15 +210,15 @@ export const PANEL_STYLES = `
   border: 0;
   border-radius: 999px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
+  background: #1A73E8;
   color: #fff;
-  font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  box-shadow: 0 6px 20px rgba(14, 165, 233, .35);
+  font: 500 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  box-shadow: 0 1px 3px rgba(60, 64, 67, .15), 0 4px 8px 3px rgba(60, 64, 67, .10);
   cursor: pointer;
-  transition: transform 150ms, box-shadow 150ms, filter 150ms;
+  transition: background 150ms, box-shadow 150ms;
 }
-.lt-bubble:hover { transform: translateY(-1px); filter: brightness(1.05); }
-.lt-bubble:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(14, 165, 233, .3); }
+.lt-bubble:hover { background: #174EA6; }
+.lt-bubble:active { background: #1A73E8; box-shadow: 0 1px 2px rgba(60, 64, 67, .10), 0 1px 3px 1px rgba(60, 64, 67, .06); }
 
 @media (prefers-reduced-motion: reduce) {
   .lt-card { animation: none; }
@@ -227,27 +226,34 @@ export const PANEL_STYLES = `
 }
 
 @media (prefers-color-scheme: dark) {
-  .lt-card { background: #1E293B; border-color: #334155; color: #E2E8F0;
-             box-shadow: 0 4px 14px rgba(0, 0, 0, .45), 0 12px 36px rgba(0, 0, 0, .5); }
-  .lt-sub, .lt-label, .lt-status { color: #94A3B8; }
-  .lt-note { background: rgba(245, 158, 11, .16); color: #FCD34D; }
-  .lt-field { color: #94A3B8; }
-  .lt-field > textarea { background: #0F172A; color: #E2E8F0; border-color: #334155; }
-  .lt-field > textarea:focus { border-color: #38BDF8; box-shadow: 0 0 0 3px rgba(56, 189, 248, .15); }
-  .lt-field > textarea[readonly] { background: #28374E; color: #CBD5E1; }
-  .lt-langbar select { color: #7DD3FC; }
-  .lt-langbar select:hover, .lt-swap:hover, .lt-close:hover { background: #28374E; }
-  .lt-swap { color: #94A3B8; }
-  .lt-close { color: #94A3B8; }
-  .lt-close:hover { color: #E2E8F0; }
-  .lt-output { background: rgba(56, 189, 248, .13); }
-  .lt-label { color: #7DD3FC; }
-  .lt-text.placeholder { color: #64748B; }
-  .lt-bar { background: #334155; }
-  .lt-button.ghost { background: #28374E; color: #E2E8F0; border-color: #334155; }
-  .lt-button.ghost:hover:not(:disabled) { background: #334155; }
-  .lt-status.error { color: #F87171; }
-  .lt-status.ok { color: #34D399; }
-  .lt-inline-lang, .lt-inline-more { color: #7DD3FC; }
+  .lt-card { background: #202124; color: #E8EAED;
+             box-shadow: 0 1px 3px rgba(0, 0, 0, .5), 0 4px 8px 3px rgba(0, 0, 0, .35); }
+  .lt-sub, .lt-label, .lt-status { color: #9AA0A6; }
+  .lt-note { background: rgba(245, 158, 11, .16); color: #FDD663; }
+  .lt-field { color: #9AA0A6; }
+  .lt-field > textarea { background: #171717; color: #E8EAED; border-color: #5F6368; }
+  .lt-field > textarea:focus { border-color: #8AB4F8; box-shadow: inset 0 0 0 1px #8AB4F8; }
+  .lt-field > textarea[readonly] { background: #2D2F31; color: #BDC1C6; }
+  .lt-langbar select { color: #9AA0A6; }
+  .lt-langbar select:hover { background: #2D2F31; color: #E8EAED; }
+  .lt-langbar select:focus-visible { outline-color: #8AB4F8; }
+  .lt-langbar .lt-target { color: #8AB4F8; box-shadow: inset 0 -2px 0 #8AB4F8; }
+  .lt-swap, .lt-close { color: #9AA0A6; }
+  .lt-swap:hover, .lt-close:hover { background: #2D2F31; color: #E8EAED; }
+  .lt-output { background: #283247; }
+  .lt-text.placeholder { color: #80868B; }
+  .lt-bar { background: #3A4A66; }
+  .lt-bar > i { background: #8AB4F8; }
+  /* 深色下的实心控件：浅蓝底 + 深字，白字压在中饱和蓝上在这个背景里读不清 */
+  .lt-button, .lt-float, .lt-hover-pill, .lt-bubble { background: #8AB4F8; color: #171717; }
+  .lt-button:hover:not(:disabled), .lt-float:hover, .lt-hover-pill:hover, .lt-bubble:hover { background: #AECBFA; }
+  .lt-button:disabled { background: #2D2F31; color: #80868B; }
+  .lt-button.ghost { background: #2D2F31; color: #E8EAED; border-color: #5F6368; }
+  .lt-button.ghost:hover:not(:disabled) { background: #3C4043; color: #E8EAED; }
+  .lt-button.primary-fill { background: #81C995; }
+  .lt-button.primary-fill:hover:not(:disabled) { background: #A0D4AC; }
+  .lt-status.error { color: #F28B82; }
+  .lt-status.ok { color: #81C995; }
+  .lt-inline-lang, .lt-inline-more { color: #8AB4F8; }
 }
 `;

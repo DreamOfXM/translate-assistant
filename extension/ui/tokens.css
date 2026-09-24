@@ -5,7 +5,8 @@
  * lib/panel-styles.js 与 lib/reader.js 的 PARA_STYLES 因挂在 Shadow DOM 里
  * 无法引用本文件，内嵌的值必须与此处保持同步（改色先改这里）。
  *
- * 风格：清新友好风 —— 青蓝主色 + 蓝青渐变 + slate 中性色。
+ * 风格：Google 翻译式中性面板 —— 白/浅灰容器 + 发丝边 + 单一实色蓝 + 药丸动作，
+ * 无渐变、无彩色投影（设计来源见 docs/design-history/r03/s02-google.html）。
  */
 
 /* hidden 属性兜底。UA 的 [hidden]{display:none} 只是普通声明，元素自身的 class
@@ -16,40 +17,32 @@
 :root {
   color-scheme: light dark;
 
-  /* 品牌色（不随主题变化的恒定值） */
-  --brand-300: #7DD3FC;
-  --brand-400: #38BDF8;
-  --brand-500: #0EA5E9;
-  --brand-600: #0284C7;
-  --brand-grad: linear-gradient(135deg, #38BDF8 0%, #14B8A6 100%);
-  --accent-500: #F59E0B;
-  --accent-600: #D97706;
-
   /* 语义色（组件只允许用这一组，深色模式在下面整体翻转） */
-  --bg: #F8FAFC;
+  --bg: #F8F9FA;
   --surface: #FFFFFF;
-  --surface-2: #F1F5F9;
-  --text: #0F172A;
-  --text-2: #64748B;
-  --text-3: #94A3B8;
-  --line: #E2E8F0;
-  --brand: #0EA5E9;
-  --brand-strong: #0284C7;
-  --brand-tint: #E0F2FE;
+  --surface-2: #F1F3F4;
+  --text: #202124;
+  --text-2: #5F6368;
+  --text-3: #80868B;
+  --line: #DADCE0;
+  --brand: #1A73E8;
+  --brand-strong: #174EA6;
+  --brand-tint: #E8F0FE;
+  --brand-tint-2: #D3E3FD;
+  --accent-500: #F59E0B;
   --accent-tint: #FEF3C7;
-  --ok: #059669;
-  --danger: #DC2626;
+  --ok: #188038;
+  --danger: #D93025;
 
-  /* 圆角 */
+  /* 圆角：容器 20/24，输入 12，小控件 8；动作一律 999 药丸 */
   --r-sm: 8px;
   --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
+  --r-lg: 20px;
+  --r-xl: 24px;
 
-  /* 阴影 */
-  --shadow-1: 0 1px 2px rgba(15, 23, 42, .05), 0 1px 3px rgba(15, 23, 42, .08);
-  --shadow-2: 0 4px 12px rgba(15, 23, 42, .08), 0 2px 4px rgba(15, 23, 42, .04);
-  --shadow-brand: 0 6px 20px rgba(14, 165, 233, .32);
+  /* 阴影：只有中性灰两档（Material elevation 1 / 3） */
+  --shadow-1: 0 1px 2px rgba(60, 64, 67, .10), 0 1px 3px 1px rgba(60, 64, 67, .06);
+  --shadow-2: 0 1px 3px rgba(60, 64, 67, .15), 0 4px 8px 3px rgba(60, 64, 67, .10);
 
   /* 动效 */
   --t-fast: 150ms;
@@ -58,29 +51,29 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0F172A;
-    --surface: #1E293B;
-    --surface-2: #28374E;
-    --text: #E2E8F0;
-    --text-2: #94A3B8;
-    --text-3: #64748B;
-    --line: #334155;
-    --brand: #38BDF8;
-    --brand-strong: #7DD3FC;
-    --brand-tint: rgba(56, 189, 248, .13);
+    --bg: #171717;
+    --surface: #202124;
+    --surface-2: #2D2F31;
+    --text: #E8EAED;
+    --text-2: #9AA0A6;
+    --text-3: #80868B;
+    --line: #5F6368;
+    --brand: #8AB4F8;
+    --brand-strong: #C2E7FF;
+    --brand-tint: #283247;
+    --brand-tint-2: #3A4A66;
     --accent-tint: rgba(245, 158, 11, .16);
-    --ok: #34D399;
-    --danger: #F87171;
+    --ok: #81C995;
+    --danger: #F28B82;
     --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-2: 0 4px 14px rgba(0, 0, 0, .45);
-    --shadow-brand: 0 6px 20px rgba(14, 165, 233, .25);
+    --shadow-2: 0 1px 3px rgba(0, 0, 0, .5), 0 4px 8px 3px rgba(0, 0, 0, .35);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
-  *::before,
-  *::after {
+  *::after,
+  *::before {
     transition: none !important;
     animation: none !important;
   }

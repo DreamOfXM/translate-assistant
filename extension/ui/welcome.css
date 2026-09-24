@@ -10,9 +10,7 @@ body {
   padding: 32px 20px;
   font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(720px 320px at 50% -80px, var(--brand-tint), transparent 70%),
-    var(--bg);
+  background: var(--bg);
 }
 * { box-sizing: border-box; }
 button { font-family: inherit; }
@@ -20,31 +18,32 @@ button { font-family: inherit; }
 main { width: min(560px, 100%); }
 
 .hero { display: flex; gap: 16px; align-items: center; margin-bottom: 26px; }
-.logo { width: 64px; height: 64px; border-radius: 16px; flex: none; box-shadow: var(--shadow-brand); }
-h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .3px; }
+.logo { width: 64px; height: 64px; border-radius: 50%; flex: none; }
+h1 { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: .2px; }
 .lead { margin: 6px 0 0; color: var(--text-2); font-size: 14px; }
 
 .lang-pick { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
-.lang-pick-label { font-size: 13px; font-weight: 600; color: var(--text-2); margin-right: 4px; }
+.lang-pick-label { font-size: 13px; font-weight: 500; color: var(--text-2); margin-right: 4px; }
 .lang-btn {
   padding: 6px 14px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color var(--t-fast), background var(--t-fast);
+  transition: background var(--t-fast), color var(--t-fast), border-color var(--t-fast);
 }
-.lang-btn:hover { border-color: var(--brand); }
-.lang-btn.active { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-strong); font-weight: 600; }
+.lang-btn:hover { background: var(--surface-2); color: var(--text); }
+/* 激活的芯片：浅蓝底 + 蓝字，靠底色而不是靠加粗区分 */
+.lang-btn.active { border-color: transparent; background: var(--brand-tint); color: var(--brand); font-weight: 500; }
 
 .steps { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
 .step {
   display: flex;
   gap: 14px;
   align-items: flex-start;
-  padding: 14px 16px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
@@ -57,12 +56,12 @@ h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .3px; }
   display: grid;
   place-items: center;
   border-radius: 999px;
-  background: var(--brand-grad);
+  background: var(--brand);
   color: #fff;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
 }
-.step-text strong { font-size: 14.5px; }
+.step-text strong { font-size: 14.5px; font-weight: 500; }
 .step-text small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--text-2); line-height: 1.55; }
 
 .privacy {
@@ -70,37 +69,35 @@ h1 { margin: 0; font-size: 26px; font-weight: 800; letter-spacing: .3px; }
   gap: 8px;
   align-items: flex-start;
   margin: 0 0 24px;
-  padding: 11px 14px;
-  border-radius: var(--r-md);
+  padding: 12px 16px;
+  border-radius: var(--r-lg);
   background: var(--brand-tint);
-  color: var(--brand-strong);
+  color: var(--text);
   font-size: 12.5px;
 }
-.privacy svg { width: 18px; height: 18px; flex: none; margin-top: 1px; }
+.privacy svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--brand); }
 
 .cta { display: flex; gap: 10px; }
 .cta button {
   flex: 1;
-  padding: 12px;
+  padding: 12px 16px;
   border: 0;
-  border-radius: var(--r-md);
-  background: var(--brand-grad);
+  border-radius: 999px;
+  background: var(--brand);
   color: #fff;
   font-size: 14.5px;
-  font-weight: 700;
-  letter-spacing: 1px;
+  font-weight: 500;
+  letter-spacing: .2px;
   cursor: pointer;
-  box-shadow: var(--shadow-brand);
-  transition: transform var(--t-fast), filter var(--t-fast);
+  box-shadow: var(--shadow-1);
+  transition: background var(--t-fast), box-shadow var(--t-fast);
 }
-.cta button:hover { transform: translateY(-1px); filter: brightness(1.04); }
-.cta button:active { transform: translateY(0); }
+.cta button:hover { background: var(--brand-strong); box-shadow: var(--shadow-2); }
+.cta button:active { box-shadow: var(--shadow-1); }
 .cta button.ghost {
   background: var(--surface);
-  color: var(--text);
+  color: var(--brand);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-1);
-  font-weight: 600;
-  letter-spacing: 0;
+  box-shadow: none;
 }
-.cta button.ghost:hover { background: var(--surface-2); filter: none; }
+.cta button.ghost:hover { background: var(--surface-2); }

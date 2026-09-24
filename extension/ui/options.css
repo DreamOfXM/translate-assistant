@@ -8,9 +8,7 @@ body {
   padding: 40px 20px 72px;
   font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(600px 260px at 18% -40px, var(--brand-tint), transparent 70%),
-    var(--bg);
+  background: var(--bg);
 }
 * { box-sizing: border-box; }
 button { font-family: inherit; }
@@ -19,19 +17,18 @@ main { max-width: 780px; margin: auto; }
 
 /* ── hero ─────────────────────────────────── */
 .hero { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 8px; }
-.logo { width: 52px; height: 52px; border-radius: 14px; flex: none; margin-top: 4px;
-        box-shadow: var(--shadow-brand); }
-h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: .3px; }
+.logo { width: 52px; height: 52px; border-radius: 50%; flex: none; margin-top: 4px; }
+h1 { margin: 0; font-size: 24px; font-weight: 500; letter-spacing: .2px; }
 .lead { margin: 8px 0 12px; color: var(--text-2); font-size: 14px; max-width: 60ch; }
 .source { margin: 0; font-size: 12px; color: var(--text-3); }
-.source a { color: var(--brand-strong); }
+.source a { color: var(--brand); }
 
-h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
+h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 500; }
 .hint { margin: 0 0 14px; font-size: 13px; color: var(--text-2); }
 
 /* ── 界面语言 ─────────────────────────────── */
 .lang-row { display: flex; align-items: center; gap: 10px; margin: 20px 0 0; font-size: 13px; }
-.lang-row label { font-weight: 600; color: var(--text-2); }
+.lang-row label { font-weight: 500; color: var(--text-2); }
 .lang-row select {
   padding: 6px 10px;
   border: 1px solid var(--line);
@@ -43,15 +40,15 @@ h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
 
 /* ── 汇总行 ───────────────────────────────── */
 .totals { display: flex; align-items: center; gap: 12px; margin: 20px 0 8px;
-          font-size: 13px; font-weight: 600; color: var(--text-2); }
+          font-size: 13px; font-weight: 500; color: var(--text-2); }
 .spacer { flex: 1; }
-.link { border: 0; background: none; padding: 0; color: var(--brand-strong); cursor: pointer;
-        font-size: 13px; font-weight: 600; }
+.link { border: 0; background: none; padding: 0; color: var(--brand); cursor: pointer;
+        font-size: 13px; font-weight: 500; }
 .link:hover { text-decoration: underline; }
 
-.bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar { height: 6px; border-radius: 999px; background: var(--brand-tint-2); overflow: hidden; }
 .bar > i { display: block; height: 100%; width: 0; border-radius: 999px;
-           background: var(--brand-grad); transition: width 250ms ease; }
+           background: var(--brand); transition: width 250ms ease; }
 .status { margin: 8px 0 0; font-size: 13px; color: var(--text-2); min-height: 1em; }
 .status.error { color: var(--danger); }
 .status.ok { color: var(--ok); }
@@ -86,7 +83,8 @@ h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
   transition: border-color var(--t-fast), box-shadow var(--t-fast);
 }
 #search::placeholder { color: var(--text-3); }
-#search:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-tint); }
+/* Material 的聚焦态是把发丝边加粗到 2px，不是外扩光晕 */
+#search:focus { outline: none; border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
 
 .list { display: flex; flex-direction: column; }
 .list .row {
@@ -99,11 +97,11 @@ h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
 }
 .list .row:last-child { border-bottom: 0; }
 .info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.name { font-weight: 600; font-size: 14px; }
+.name { font-weight: 500; font-size: 14px; }
 .meta { font-size: 12px; color: var(--text-2); }
 
 /* 状态 chip：已就绪 / 待下载 */
-.meta.ready { color: var(--ok); font-weight: 600; }
+.meta.ready { color: var(--ok); font-weight: 500; }
 .cards .meta.ready::before,
 .list .meta.ready::before { content: '✓ '; }
 .cards .meta:not(.ready) {
@@ -118,26 +116,25 @@ h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 700; }
 .actions { display: flex; gap: 8px; flex-shrink: 0; }
 
 button.action {
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: 0;
-  border-radius: var(--r-sm);
-  background: var(--brand-grad);
+  border-radius: 999px;
+  background: var(--brand);
   color: #fff;
-  font: 600 13px inherit;
+  font: 500 13px inherit;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(14, 165, 233, .25);
-  transition: transform var(--t-fast), filter var(--t-fast), box-shadow var(--t-fast);
+  box-shadow: var(--shadow-1);
+  transition: background var(--t-fast), box-shadow var(--t-fast);
 }
-button.action:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.05); }
-button.action:active:not(:disabled) { transform: translateY(0); box-shadow: var(--shadow-1); }
-button.action:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+button.action:hover:not(:disabled) { background: var(--brand-strong); box-shadow: var(--shadow-2); }
+button.action:active:not(:disabled) { box-shadow: var(--shadow-1); }
+button.action:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; box-shadow: none; }
 button.action.remove {
   background: var(--surface);
-  color: var(--text);
+  color: var(--text-2);
   border: 1px solid var(--line);
   box-shadow: none;
-  font-weight: 500;
 }
-button.action.remove:hover:not(:disabled) { background: var(--surface-2); filter: none; }
+button.action.remove:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
 
 .empty { padding: 24px 0; color: var(--text-3); font-size: 14px; text-align: center; }
