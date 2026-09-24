@@ -2,9 +2,9 @@
 
 # Translate Assistant
 
-**Translate foreign-language pages locally in your browser — no API keys, no uploads, offline once packs are installed**
+**Draft in your own language, the translation replaces your draft in place — no API keys, no uploads, offline once packs are installed**
 
-*On-device translation for Chrome: bilingual full-page view, select-to-translate and reply drafts. A Google Translate / Immersive Translate alternative that needs no API key and sends nothing anywhere.*
+*Write-back translation for Chrome: type a reply in your language and the translation lands in the box, plus bilingual full-page view and select-to-translate. A Google Translate / Immersive Translate alternative that needs no API key and sends nothing anywhere.*
 
 [简体中文](README.md) | **English README**
 
@@ -12,9 +12,9 @@
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
 
-<img src="docs/images/bilingual.gif" alt="Bilingual page demo" width="720">
+<img src="docs/images/writeback-en.gif" alt="Write-back translation demo" width="640">
 
-*Open a foreign page and translations appear under each paragraph — fully local, zero configuration*
+*Type your reply in your own language, right in the comment box → click "Translate reply" → a card pops up next to it → click "Fill in" and the translation replaces your draft in place. The send button stays yours*
 
 </div>
 
@@ -24,18 +24,33 @@
 
 | | Feature | Details |
 | --- | --- | --- |
+| ✍️ | **Write-back translation** | Draft a reply in your own language in any comment box; the translation **replaces the draft in place** — **only after you confirm**, never auto-posted |
 | 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched |
 | 🔍 | **Select to translate** | Select any foreign text, click the floating pill, get a result card in place |
-| ✍️ | **Reply assistant** | Draft a reply in your language in any comment box, generate a translation, and it's filled in **only after you confirm** — never auto-posted |
 | ⚡ | **Two engines, picked automatically** | Uses the browser's built-in model when it's available (Chrome 138+), otherwise the offline engine bundled with the extension |
 | 📴 | **Offline** | Install a language pack once and translation keeps working without a network |
 | 🔒 | **Privacy first** | Page text, drafts and translations are never uploaded — both engines translate on your device; the network is only used to download models |
 
 <p align="center">
-  <img src="docs/images/popup-translate.gif" alt="Popup translate" width="300">
-  &nbsp;&nbsp;
-  <img src="docs/images/selection.gif" alt="Select to translate" width="300">
+  <img src="docs/images/bilingual-en.gif" alt="Bilingual page" width="280">
+  <img src="docs/images/popup-translate-en.gif" alt="Popup translate" width="280">
+  <img src="docs/images/selection-en.gif" alt="Select to translate" width="280">
 </p>
+
+## ✍️ Write-back translation: type in your language, the translation lands in the box
+
+Reading foreign pages needs translation. Writing a reply back needs it more. This feature does the **last step**: draft in your own language in a comment box, a post box or a webmail composer, hit "translate reply", confirm — and your draft is replaced by the translation, in place. The send button stays yours.
+
+The hard part isn't translating, it's writing. Filling a text box looks like one assignment and is where this kind of product breaks most often, so our write-back **has to prove it worked**:
+
+- **Whole-replacement only**: after writing, we re-read the box and require it to be *exactly* the translation. Anything appended after your draft — half in one language, half in the other — counts as a failure
+- **Three channels, roll back on damage**: `execCommand` insert → native select-all then insert → synthetic paste event. Editors like Reddit's Lexical block the first two but honour paste; if a write mangles the draft we undo it, re-checking after each step rather than leaving your text half-destroyed
+- **Works on React-controlled inputs**: we bypass the framework's value setter and re-fire `input` / `change` — otherwise the box looks filled while the framework still holds an empty state, and "send" posts nothing
+- **Composers inside iframes too**: most webmail bodies live in an iframe, and that's still covered
+- **Your draft never leaves the device**: both engines run locally. It's the draft, not the page you opened, that deserves privacy
+
+> A few rich-text editors reject programmatic writes entirely. Then the translation goes straight to your clipboard and the panel says so in as many words — select all, paste. It never claims a success it didn't get.
+> Input boxes in desktop apps (mail clients, chat apps, notes) are out of a browser extension's reach — on macOS the [menu bar app](macos/README.md) below covers them through the system accessibility API, on the same engine.
 
 ## 🌐 Translation engines: both run on your device
 
@@ -54,10 +69,10 @@ Two engines ship with the extension, and it picks whichever fits — either way 
 Models come from Mozilla's public [Firefox Translations](https://github.com/mozilla/firefox-translations-models) catalog (116 directions, MPL-2.0).
 
 <p align="center">
-  <img src="docs/images/packs.gif" alt="Language pack manager" width="720">
+  <img src="docs/images/packs-en.gif" alt="Language pack manager" width="720">
 </p>
 
-- **On-demand download**: a pack (about 25–50 MB) is fetched the first time you use a direction, with the size shown up front
+- **On-demand download**: a pack (13–60 MB, typically around 30 MB) is fetched the first time you use a direction, with the size shown up front
 - **Offline runtime**: once installed, translation is fully local — airplane mode included
 - **Integrity checked**: model files are SHA-256 verified; corrupted files are discarded automatically
 - **Relay for non-English pairs**: Mozilla only publishes X↔English models, so pairs like Chinese↔Japanese relay through English (the UI tells you when two packs are needed)
@@ -99,7 +114,7 @@ The UI speaks **中文 / English** — it follows your browser language and can 
 > This section is for macOS users only; Windows / Linux users can skip it — the extension itself uses no platform-specific features.
 
 A browser extension can only see the pages it injects into. To translate the input
-field of **any app** (Notes, mail clients, chat apps, web pages) on the same engine,
+field of **any app** (Notes, mail clients, chat apps) on the same engine,
 the repo also ships a macOS menu bar app.
 
 ```bash
@@ -112,6 +127,9 @@ open macos/dist/TranslateAssistant.app
 - Reuses the **same** Bergamot WASM engine and the same language packs, fully offline
 - Reads and writes the focused field through the system Accessibility API, so it needs
   a one-time Accessibility grant
+- **Translate this page in the app** in the menu: full-page bilingual in the app's own
+  window, no extension needed. It only asks the browser for the active tab's *URL* —
+  the window reloads the page itself — so the grant it needs is Automation, not Accessibility
 - The panel deliberately never steals focus; focus is handed back to the target app
   before writing
 
@@ -152,7 +170,8 @@ extension/
   vendor/             bergamot-translator 0.4.9 (MPL-2.0)
 tests/unit/           unit tests (node:test + jsdom)
 tests/e2e/            Playwright end-to-end smoke tests
-macos/                macOS menu bar app (Accessibility API reads/writes any input field, same engine)
+macos/                macOS menu bar app (Accessibility API reads/writes any input field, same
+                      engine; plus an in-app page window for bilingual reading without the extension)
 scripts/              packaging and engine verification
 docs/                 store listing copy and demo assets
 LICENSE               full MPL-2.0 license text

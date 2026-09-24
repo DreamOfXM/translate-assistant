@@ -2,9 +2,9 @@
 
 # 翻译助手
 
-**在浏览器里本地翻译网页的外语内容 —— 不用 API Key、不上传文本、装好语言包离线也能用**
+**在输入框里用中文打草稿，译文原地整段替回 —— 不用 API Key、不上传文本、装好语言包离线也能用**
 
-*Offline on-device page translation for Chrome: bilingual full-page view, no API keys, no uploads, no tracking.*
+*Write-back translation for Chrome: draft in your own language, the translation replaces it in place — plus offline bilingual page reading. No API keys, no uploads, no tracking.*
 
 **简体中文** | [English README](README.en.md)
 
@@ -12,9 +12,9 @@
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
 
-<img src="docs/images/bilingual.gif" alt="整页双语对照演示" width="720">
+<img src="docs/images/writeback.gif" alt="写入式翻译演示" width="640">
 
-*打开外文网页，译文自动逐段出现在原文下方 —— 全程本地完成，无需任何配置*
+*中文直接打在评论框里 → 点框边的「翻译回复」→ 译文卡片就地弹出 → 点「填入输入框」整段替回，发送键仍然在你手上*
 
 </div>
 
@@ -24,18 +24,34 @@
 
 | | 能力 | 说明 |
 | --- | --- | --- |
+| ✍️ | **写入式翻译** | 评论框里用中文打草稿，译文**整段替回**输入框；**确认后**才写入，绝不替你发送 |
 | 📖 | **整页双语对照** | 打开外文网页，译文自动逐段插在原文下方；只翻正文，导航/广告/评论区一律不碰 |
 | 🔍 | **选中即译** | 随便选一段外文，点「翻译选中」，结果卡片就地弹出 |
-| ✍️ | **回复助手** | 在评论框用中文写草稿，一键生成译文，**确认后**才填入，绝不替你发送 |
 | ⚡ | **两个引擎，自动择优** | 浏览器已内置对应语言模型时优先用它（Chrome 138+），否则用扩展自带的离线引擎 |
 | 📴 | **离线可用** | 语言包下载一次后，断网照常翻译 |
 | 🔒 | **隐私优先** | 文本、草稿、译文都不上传，两套引擎都在设备上完成翻译；网络只用于下载模型 |
 
 <p align="center">
-  <img src="docs/images/popup-translate.gif" alt="一键翻译" width="300">
-  &nbsp;&nbsp;
-  <img src="docs/images/selection.gif" alt="选中即译" width="300">
+  <img src="docs/images/bilingual.gif" alt="整页双语对照" width="280">
+  <img src="docs/images/popup-translate.gif" alt="弹窗翻译" width="280">
+  <img src="docs/images/selection.gif" alt="选中即译" width="280">
 </p>
+
+## ✍️ 写入式翻译：用中文写，译文原地替回输入框
+
+读别人写的网页要翻译，自己写回复更要翻译。这个能力做的是**最后一步**：
+在评论框、发帖框、网页版邮箱的正文框里直接用中文打草稿，点框边的「翻译回复」，译文卡片就地弹出；点「填入输入框」，整段替成译文——发送键仍然在你手上。
+
+难点不在翻译，在写入。往输入框里写字看起来是一行赋值，实际是这类产品翻车最多的地方，所以我们把写入做成了**必须验真**：
+
+- **只认「整段替换」**：写完复核框里内容是否逐字等于译文。追加在原文后面、留下半中半英的草稿，一律判失败
+- **三条通道挨个试，试坏就回滚**：`execCommand` 插入 → 原生全选再插入 → 模拟粘贴事件。Reddit（Lexical）这类编辑器挡掉前两条却接受粘贴；写坏了就撤销回原样，每撤一次复核一次，宁可什么都不改
+- **React 受控输入框也认**：绕过框架的 value setter 再补发 `input` / `change`，否则界面上填好了、框架里的状态还是空的，点发送就是一封空帖
+- **iframe 里的正文框照样能写**：网页版邮箱的写信框大多关在 iframe 里
+- **草稿不出设备**：两套引擎都在本地跑，敏感的是草稿而不是你打开的那篇网页
+
+> 少数富文本编辑器把所有程序化写入都堵死。这时译文会自动放进剪贴板，面板明说「这个编辑器不接受自动填入」并让你全选后粘贴——不会假装成功。
+> 桌面 App（邮件客户端、聊天软件、备忘录）里的输入框浏览器扩展够不着——macOS 上由下面的[菜单栏版](macos/README.md)接手，走系统辅助功能 API，同一套引擎。
 
 ## 🌐 翻译引擎：两套都跑在你的设备上
 
@@ -57,7 +73,7 @@
   <img src="docs/images/packs.gif" alt="语言包管理" width="720">
 </p>
 
-- **按需下载**：第一次使用某个语言方向时才下载对应语言包（单个约 25–50 MB），下载前会明确告诉你体积
+- **按需下载**：第一次使用某个语言方向时才下载对应语言包（单个 13–60 MB，多数在 30 MB 上下），下载前会明确告诉你体积
 - **离线运行**：装好之后翻译完全本地完成，断网、内网、飞行模式都能用
 - **完整性校验**：模型文件带 SHA-256 校验，损坏自动丢弃重下
 - **非英语对经英语中转**：Mozilla 只发布「各语言 ↔ 英语」模型，中文 ↔ 日语这类方向会自动经英语中转（界面会注明需要两个语言包）
@@ -99,7 +115,7 @@ npm run build
 > 这一节只与 macOS 用户有关，Windows / Linux 用户可以跳过 —— 扩展本身不依赖任何平台特性。
 
 浏览器扩展只能看见浏览器里的网页。想在同一套引擎下翻译**任何 App 的输入框**
-（备忘录、邮件客户端、聊天工具、网页……），仓库里还有一个 macOS 菜单栏应用。
+（备忘录、邮件客户端、聊天工具……），仓库里还有一个 macOS 菜单栏应用。
 
 ```bash
 npm run build:macos
@@ -109,6 +125,8 @@ open macos/dist/TranslateAssistant.app
 - 快捷键 `⌃⌥T` 翻译当前输入框、`⌃⌥Y` 翻译选中文字，浮层确认后原地填回
 - 复用**同一份** Bergamot WASM 引擎与同一批语言包，完全离线
 - 走系统辅助功能 API 读写焦点输入框，因此需要一次「辅助功能」授权
+- 菜单里的「在 App 里翻译浏览器当前页面」：不装扩展，在 App 自己的窗口里做整页双语。
+  它只向浏览器要当前标签页的**地址**，正文由这个窗口重新加载，要的是「自动化」授权而不是「辅助功能」
 - 浮层刻意做成不抢焦点，填回前自动把焦点还给目标 App
 
 覆盖范围、授权步骤与已知盲区见 [macos/README.md](macos/README.md)。
@@ -148,7 +166,8 @@ extension/
   vendor/             bergamot-translator 0.4.9（MPL-2.0）
 tests/unit/           单元测试（node:test + jsdom）
 tests/e2e/            Playwright 端到端冒烟测试
-macos/                macOS 菜单栏应用（辅助功能 API 读写任意输入框，复用同一引擎）
+macos/                macOS 菜单栏应用（辅助功能 API 读写任意输入框，复用同一引擎；
+                      另有一个 App 内页面窗口，不装扩展也能整页双语）
 scripts/              打包与引擎验证脚本
 docs/                 商店文案与演示素材
 LICENSE               MPL-2.0 许可证全文
