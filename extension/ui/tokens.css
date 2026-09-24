@@ -78,3 +78,10 @@
     animation: none !important;
   }
 }
+
+/* 品牌标记：popup / options / welcome 头部那枚内联 SVG。
+   上色只能写在这里 —— var() 在 SVG 呈现属性（fill="…"）里不生效，
+   所以图形本身不带颜色，深色模式随 --brand / --surface 一起翻转。 */
+.logo-mark { fill: var(--brand); }
+.logo-bubble { fill: var(--surface); }
+.logo-glyph { fill: var(--brand); }

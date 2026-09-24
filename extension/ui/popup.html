@@ -9,17 +9,11 @@
   <body>
     <header class="brand">
       <svg class="logo" viewBox="0 0 512 512" aria-hidden="true">
-        <defs>
-          <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#38BDF8" />
-            <stop offset="1" stop-color="#14B8A6" />
-          </linearGradient>
-        </defs>
-        <rect width="512" height="512" rx="112" fill="url(#logo-g)" />
-        <rect x="112" y="128" width="288" height="204" rx="52" fill="#fff" />
-        <path d="M232 316 L150 388 L196 316 Z" fill="#fff" />
-        <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
-              font-size="150" font-weight="700" fill="#0284C7"
+        <rect class="logo-mark" width="512" height="512" rx="112" />
+        <rect class="logo-bubble" x="112" y="128" width="288" height="204" rx="52" />
+        <path class="logo-bubble" d="M232 316 L150 388 L196 316 Z" />
+        <text class="logo-glyph" x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+              font-size="150" font-weight="700"
               text-anchor="middle" dominant-baseline="central" data-i18n="brand_mark">译</text>
       </svg>
       <h1 data-i18n="app_name">翻译助手</h1>
