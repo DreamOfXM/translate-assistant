@@ -28,5 +28,7 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>MPL-2.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>读取浏览器当前页面的地址，好在 App 自己的窗口里翻译这个页面。只取地址和标题，不读取页面内容。</string>
 </dict>
 </plist>

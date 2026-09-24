@@ -35,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let focusTracker = FocusTracker()
     /// 浮标当前盯着的输入框，点下去时按它取内容（而不是再问一次系统焦点）
     private var pillTarget: Accessibility.FieldGeometry?
+    /// 「在 App 里翻译浏览器当前页面」的窗口：不经过扩展，也不需要辅助功能授权
+    private var pageWindow: PageWindowController!
 
     // MARK: - 启动
 
@@ -51,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onRetry: { [weak self] in self?.retry() },
             onClose: { [weak self] in self?.hud.close() }
         )
+
+        pageWindow = PageWindowController(engine: engine)
 
         engine.onProgress = { [weak self] progress in
             guard let self else { return }
@@ -87,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         trustTimer?.invalidate()
         focusTracker.stop()
         pill.hide()
+        pageWindow?.shutdown()
         engine.shutdown()
         server.stop()
     }
@@ -118,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lines.append("· 光标进输入框时，它的右上角会浮出一个「译」按钮，点一下即可——不用记热键")
         lines.append("· \(preferences.wholeFieldHotKey.description)：翻译光标所在的输入框")
         lines.append("· \(preferences.selectionHotKey.description)：翻译选中的文字")
+        lines.append("· 菜单里的「在 App 里翻译浏览器当前页面」：不装扩展，在 App 的窗口里做整页双语")
         if !Accessibility.isTrusted {
             lines.append("")
             lines.append("还没授权：点「去授权」，在「辅助功能」里勾上本 App。没授权的话热键读不到别的 App 的输入框。")
@@ -507,6 +513,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         selection.isEnabled = Accessibility.isTrusted
         menu.addItem(selection)
 
+        // 只读浏览器标签页的地址，正文由 App 自己的窗口重新加载 ——
+        // 这条路要的是「自动化」授权，不是「辅助功能」，所以没授权上面两项时它照样能点。
+        let page = NSMenuItem(
+            title: "在 App 里翻译浏览器当前页面",
+            action: #selector(menuTranslatePage),
+            keyEquivalent: ""
+        )
+        page.target = self
+        menu.addItem(page)
+
         menu.addItem(.separator())
 
         let trust = NSMenuItem(
@@ -623,6 +639,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func menuWholeField() { begin(mode: .wholeField) }
     @objc private func menuSelection() { begin(mode: .selection) }
+
+    /// 「在 App 里翻译浏览器当前页面」：向浏览器要地址，正文在自己的窗口里翻。
+    @objc private func menuTranslatePage() {
+        let outcome = BrowserTabReader.readActiveTab()
+        switch outcome {
+        case .success(let page):
+            ltTrace("menuTranslatePage：读到 \(page.browserName) · \(page.url.absoluteString)")
+            pageWindow.present(page)
+        case .failure(let error):
+            ltTrace("menuTranslatePage：读取失败 \(error.localizedDescription)")
+            pageWindow.presentError(error)
+        }
+    }
 
     @objc private func menuOpenTrust() {
         Accessibility.openSystemSettings()

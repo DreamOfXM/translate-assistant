@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const macos = path.join(root, 'macos');
@@ -46,6 +47,23 @@ async function assembleWeb() {
 
   const wasm = path.join(webDir, 'vendor', 'worker', 'bergamot-translator-worker.wasm');
   if (!existsSync(wasm)) throw new Error(`引擎 WASM 缺失：${wasm}`);
+
+  /**
+   * 整页双语的注入脚本。和扩展的 content.js 同理：WKWebView 里注入的是经典脚本，
+   * 必须打包成单文件。它 import 的是 extension/lib/reader.js —— 正文识别与
+   * 双语节点只有一份实现，桌面端不 fork。
+   */
+  await build({
+    entryPoints: [path.join(macos, 'web', 'page-translate.js')],
+    outfile: path.join(webDir, 'page-bundle.js'),
+    bundle: true,
+    format: 'iife',
+    target: 'safari15',
+    legalComments: 'none',
+    logLevel: 'warning'
+  });
+  // 打包产物才是被注入的那份，未打包的源码留在 web 根目录只会让人以为两处都在跑
+  await rm(path.join(webDir, 'page-translate.js'), { force: true });
 
   return needed;
 }
