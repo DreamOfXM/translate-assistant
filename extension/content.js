@@ -777,11 +777,20 @@ async function autoStart() {
   const chrome = await chromeEngineStatus(source, READ_TARGET_LANGUAGE);
   // 「这次为什么没走谷歌模型」的唯一现场证据，排查先看这一行（available 才代表模型已落盘可用）
   console.info('[翻译助手] Chrome 内建引擎可用性：', chrome.status, chrome);
+  const localReady = await directionReady(source);
+  // 本地语言包已就绪就先翻，别把整页对照绑在浏览器模型上：
+  // 内建模型 downloadable 时自动模式确实不能静默下载，但手里有能用的引擎却没结果，
+  // 用户看到的就是一句「正在下载谷歌翻译模型」外加页面纹丝不动
+  if (localReady) {
+    hoverReader.setBubbleNotice(null);
+    hoverReader.setAuto(true);
+    return;
+  }
   if (chrome.status === 'downloadable' || chrome.status === 'downloading') {
     hoverReader.setBubbleNotice({ text: t('bubble_google') });
     return;
   }
-  if (!(await directionReady(source)) && chrome.status !== 'available') {
+  if (chrome.status !== 'available') {
     // 不静默装死：告诉用户为什么没翻；点击按钮=开始翻译（手动触发允许下载）
     hoverReader.setBubbleNotice({ text: t('bubble_pack') });
     return;

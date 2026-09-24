@@ -217,6 +217,10 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   let bubble = null;               // 右下角悬浮按钮
   let pageUi = false;              // 悬浮按钮是否显示
   let liveMode = false;            // 自动模式：段落进入视口就翻
+  // 整页双语是否处于「已展开」。不能拿 batchNodes 里的译文数当这个状态：
+  // 悬停单段翻译也往 batchNodes 里塞节点，于是用户先翻过一段后，
+  // 第一次点「双语对照」只会把那段藏掉，整页翻译根本没启动
+  let pageOn = false;
   let bubbleNotice = null;         // 自动翻译未运行时的原因提示 { text, action }，action: 'install'|null
   let bubbleDownload = null;       // 引擎模型下载中的提示：优先于「翻译中 n/m」
   let bubbleEngine = null;         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
@@ -426,6 +430,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   };
 
   const hideAll = () => {
+    pageOn = false;
     pruneBatchNodes();
     for (const node of batchNodes) node.host.hidden = true;
     queued = new WeakSet();   // 收起后再点「双语对照」要能重新入队
@@ -576,6 +581,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   const stop = () => {
     generation += 1;          // 作废在途的那一轮 pump，别让它和新一轮抢同一个队列
     liveMode = false;
+    pageOn = false;           // 暂停后已显示的译文留着，下一次点击是「接着翻」而不是「收起」
     queue.length = 0;
     queued = new WeakSet();   // 停止后重新开始时要能重新入队
     stopWatching();
@@ -594,6 +600,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
       return;
     }
     liveMode = true;
+    pageOn = true;         // 自动模式下按钮同样要能「收起」，不能因为没手点就退回翻译
     scan();
     watchDom();
     pump();
@@ -621,6 +628,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   /** 手动点「双语对照」：整页都翻，不只在视口里的 */
   const runAll = () => {
     liveMode = false;
+    pageOn = true;
     const blocks = scan(document, { immediate: true });
     // 之前只是被观察着的段落（还没滚到）也一起翻
     for (const el of blocks) enqueue(el);
@@ -648,7 +656,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
         stop();
         return;
       }
-      if (translatedCount()) {
+      if (pageOn && translatedCount()) {
         hideAll();
         return;
       }

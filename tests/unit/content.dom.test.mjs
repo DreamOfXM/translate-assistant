@@ -598,6 +598,32 @@ test('整页双语对照：再点收起全部译文，第三次点恢复且不�
   assert.equal(translateCalls.length, 2, '已有译文不应再次请求翻译');
 });
 
+test('整页双语对照：先悬停翻过一段，第一次点按钮是整页翻译而不是收起', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
+
+  const para = window.document.getElementById('para');
+  const para2 = window.document.getElementById('para2');
+  para.textContent = 'Local translation runs entirely on your device.';
+  para2.textContent = 'Another local paragraph for batch tests.';
+
+  para.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+  shadow().querySelector('.lt-hover-pill').click();
+  await tick();
+  assert.equal(translateCalls.length, 1, '悬停只翻悬停的那一段');
+  const hovered = para.nextElementSibling;
+  assert.ok(hovered?.classList.contains('lt-para-host'), '悬停译文应已插在段落后面');
+
+  shadow().querySelector('.lt-bubble').click();
+  await tick();
+
+  assert.equal(hovered.hidden, false, '单独翻过一段不该让第一次点击变成「收起」');
+  assert.ok(para2.nextElementSibling?.classList.contains('lt-para-host'), '整页翻译应补上另一段');
+  assert.equal(translateCalls.length, 2, '已有译文的那段不应再请求一次');
+  assert.match(shadow().querySelector('.lt-bubble').textContent, /已译 2 段/);
+});
+
 test('整页双语对照：收段时跳过容器块，只翻叶子段落', async () => {
   reset();
   installedPacks = ['en-zh'];
@@ -637,6 +663,35 @@ test('整页双语对照：语言包就绪时打开网页自动翻译，不用�
       .querySelector('.lt-para-text').textContent,
     /译文/
   );
+  installedPacks = [];
+});
+
+test('整页双语对照：本地语言包已就绪时，谷歌模型没下完也照样自动翻', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  window.document.getElementById('para').textContent = 'Local translation runs entirely on your device.';
+  window.document.getElementById('para2').textContent = 'Another local paragraph for batch tests.';
+
+  // 内建引擎在线但模型停在 downloadable：自动模式不能静默下载，可手里有能用的引擎
+  // 就必须照翻——否则按钮上挂着「正在下载谷歌翻译模型」，页面却一段都不动
+  const previousSelf = globalThis.self;
+  globalThis.self = window;
+  window.Translator = { availability: async () => 'downloadable' };
+  try {
+    // 自动翻译的现场定义就是「没有用户手势」：上一个用例刚点过按钮，
+    // 手势窗口（chrome-translator.js 的 GESTURE_WINDOW_MS = 5000）没过的话，
+    // 这里会变成「点击触发下载」那条路，测的就不是自动模式了
+    await new Promise(resolve => setTimeout(resolve, 5200));
+    storageListeners.forEach(listener => listener({ autoBilingual: { newValue: true } }, 'local'));
+    await tick();
+  } finally {
+    delete window.Translator;
+    if (previousSelf === undefined) delete globalThis.self;
+    else globalThis.self = previousSelf;
+  }
+
+  assert.ok(translateCalls.length >= 2, `语言包可用时该自动翻译，实际请求 ${translateCalls.length} 次`);
+  storageListeners.forEach(listener => listener({ autoBilingual: { newValue: false } }, 'local'));
   installedPacks = [];
 });
 
