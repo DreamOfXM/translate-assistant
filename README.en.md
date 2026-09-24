@@ -14,7 +14,7 @@
 
 <img src="docs/images/writeback-en.gif" alt="Write-back translation demo" width="640">
 
-*Type your reply in your own language, right in the comment box → click "Translate reply" → a card pops up next to it → click "Fill in" and the translation replaces your draft in place. The send button stays yours*
+*Type your reply in your own language, right in the page's own text field → click "Translate reply" → a card pops up next to it → click "Fill in" and the translation replaces your draft in place. The send button stays yours*
 
 </div>
 
