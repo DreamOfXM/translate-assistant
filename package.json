@@ -1,6 +1,6 @@
 {
   "name": "translate-assistant",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "在浏览器本地翻译选中文本和回复草稿的 Chrome 扩展，无需 API Key，可离线使用",
