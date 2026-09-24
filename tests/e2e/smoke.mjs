@@ -250,8 +250,14 @@ try {
   extensionId = new URL(worker.url()).host;
   await check('扩展加载：Service Worker 就绪', () => `id=${extensionId}`, 30000);
 
-  /* 2. 扩展页面可用（固定中文 UI，断言按中文文案走） */
-  await worker.evaluate(() => chrome.storage.local.set({ uiLang: 'zh' }));
+  /* 2. 扩展页面可用（固定中文 UI，断言按中文文案走）
+     三个开关必须在这里显式写死：它们持久在 .chrome-profile 里，而这套 profile
+     会被别的进程共用（录 README 配图的脚本用的就是同一个目录）。上一版只在
+     第 6 节才第一次写 pageBilingual，于是前面几节的悬浮按钮在不在，
+     取决于上一次谁用过这个 profile —— 红了两条却跟被测代码无关。 */
+  await worker.evaluate(() => chrome.storage.local.set({
+    uiLang: 'zh', pageBilingual: true, autoBilingual: false, hoverTranslate: false
+  }));
   extensionPage = await context.newPage();
   watchPage(extensionPage, 'popup');
   await extensionPage.goto(`chrome-extension://${extensionId}/ui/popup.html`);
@@ -400,11 +406,24 @@ try {
 
     await check(`页面：悬停翻译（读模式 · ${hoverReady ? '日语中转' : '英语'}）`, async () => {
       await extensionPage.evaluate(() => chrome.storage.local.set({ hoverTranslate: true }));
-      await page.waitForTimeout(300);
       const paragraph = page.locator(hoverTarget);
       await paragraph.scrollIntoViewIfNeeded();
-      await paragraph.hover();
-      await page.waitForSelector('.lt-hover-pill', { timeout: 10000 });
+      /* 「把指针放到段落上」不等于「触发 mouseover」。指针本来就在目标元素里、
+         或者上一步的滚动把段落挪到了静止的指针底下，Chromium 都不补发 mouseover，
+         扩展压根不知道有段落被悬停 —— 实测三次里漏一次。先甩到左上角空白再回来，
+         保证每次都实打实跨一次元素边界。 */
+      const hoverOn = async () => {
+        await page.mouse.move(4, 4);
+        await page.waitForTimeout(150);
+        await paragraph.hover();
+      };
+      await hoverOn();
+      const shown = await page.waitForSelector('.lt-hover-pill', { timeout: 6000 })
+        .then(() => true).catch(() => false);
+      if (!shown) {
+        await hoverOn();
+        await page.waitForSelector('.lt-hover-pill', { timeout: 6000 });
+      }
       // 不能用 locator.click()：Playwright 点击前会「滚动到可视区域」，
       // 而 content script 监听 scroll 收起按钮，一滚按钮就没了。
       // 这里直接在页面里派发 click，跳过滚动。
