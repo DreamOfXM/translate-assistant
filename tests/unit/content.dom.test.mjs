@@ -106,6 +106,18 @@ test('聚焦 textarea 会出现「翻译回复」入口', async () => {
   assert.equal(button.textContent, '翻译回复');
 });
 
+test('结果区没译文时显示占位文案，不是函数源码', async () => {
+  reset();
+  const comment = window.document.getElementById('comment');
+  comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+  await tick();
+  shadow().querySelector('.lt-float').click();
+
+  const result = shadow().querySelector('.lt-card .lt-result');
+  assert.equal(result.textContent, '译文会出现在这里。',
+    '占位必须是本地化文案：把 RESULT_PLACEHOLDER 当值插进模板会渲染出箭头函数源码');
+});
+
 test('密码框不会出现入口按钮', async () => {
   reset();
   const secret = window.document.getElementById('secret');

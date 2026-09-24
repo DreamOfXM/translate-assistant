@@ -91,7 +91,7 @@ const RESULT_PLACEHOLDER = () => t('output_placeholder');
  */
 function showResult({ result, label, copyButton }, text, targetName) {
   const value = text ?? '';
-  result.textContent = value || RESULT_PLACEHOLDER;
+  result.textContent = value || RESULT_PLACEHOLDER();
   result.className = value ? 'lt-text lt-result' : 'lt-text lt-result placeholder';
   if (label) label.textContent = targetName ? t('output_label_named', { name: targetName }) : t('output_label');
   if (copyButton) copyButton.disabled = !value;
@@ -228,7 +228,7 @@ function openResultCard({ text, rect }) {
     <p class="lt-status"></p>
     <div class="lt-output">
       <div class="lt-label lt-output-label">译文</div>
-      <p class="lt-text lt-result placeholder">${RESULT_PLACEHOLDER}</p>
+      <p class="lt-text lt-result placeholder">${RESULT_PLACEHOLDER()}</p>
     </div>
   `;
   shadow.append(card);
@@ -324,7 +324,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     <p class="lt-status"></p>
     <div class="lt-output">
       <div class="lt-label lt-output-label">译文</div>
-      <p class="lt-text lt-result placeholder">${RESULT_PLACEHOLDER}</p>
+      <p class="lt-text lt-result placeholder">${RESULT_PLACEHOLDER()}</p>
     </div>
   `;
   card.querySelector('.lt-draft').value = draft;
@@ -452,7 +452,7 @@ function openInlineTranslation({ input }) {
       <button class="lt-button primary-fill lt-fill" type="button" disabled>${t('fill')}</button>
       <button class="lt-button ghost lt-retry" type="button" disabled>${t('inline_retry')}</button>
       <button class="lt-button ghost lt-copy" type="button" disabled>${t('copy')}</button>
-      <button class="lt-inline-more" type="button">完整面板</button>
+      <button class="lt-inline-more" type="button">${t('inline_more')}</button>
     </div>
     <p class="lt-status"></p>
   `;
@@ -487,7 +487,7 @@ function openInlineTranslation({ input }) {
     fillButton.disabled = retryButton.disabled = copyButton.disabled = true;
     bar.hidden = false;
     barFill.style.width = '0%';
-    result.textContent = RESULT_PLACEHOLDER;
+    result.textContent = RESULT_PLACEHOLDER();
     result.classList.add('placeholder');
     status(message, t('status_translating'));
     try {
