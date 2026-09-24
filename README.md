@@ -32,9 +32,9 @@
 | 🔒 | **隐私优先** | 文本、草稿、译文都不上传，两套引擎都在设备上完成翻译；网络只用于下载模型 |
 
 <p align="center">
-  <img src="docs/images/bilingual.gif" alt="整页双语对照" width="280">
-  <img src="docs/images/popup-translate.gif" alt="弹窗翻译" width="280">
-  <img src="docs/images/selection.gif" alt="选中即译" width="280">
+  <img src="docs/images/bilingual.gif" alt="整页双语对照" width="270">
+  <img src="docs/images/popup-translate.gif" alt="弹窗翻译" width="270">
+  <img src="docs/images/selection.gif" alt="选中即译" width="270">
 </p>
 
 ## ✍️ 写入式翻译：用中文写，译文原地替回输入框

@@ -32,9 +32,9 @@
 | 🔒 | **Privacy first** | Page text, drafts and translations are never uploaded — both engines translate on your device; the network is only used to download models |
 
 <p align="center">
-  <img src="docs/images/bilingual-en.gif" alt="Bilingual page" width="280">
-  <img src="docs/images/popup-translate-en.gif" alt="Popup translate" width="280">
-  <img src="docs/images/selection-en.gif" alt="Select to translate" width="280">
+  <img src="docs/images/bilingual-en.gif" alt="Bilingual page" width="270">
+  <img src="docs/images/popup-translate-en.gif" alt="Popup translate" width="270">
+  <img src="docs/images/selection-en.gif" alt="Select to translate" width="270">
 </p>
 
 ## ✍️ Write-back translation: type in your language, the translation lands in the box
