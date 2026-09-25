@@ -96,6 +96,7 @@ function start() {
   if (!document.body) return;
 
   const reader = createHoverReader({
+    targetLanguage: TARGET,
     getHost: () => host,
     getShadow: () => mount().shadow,
     translateParagraph,

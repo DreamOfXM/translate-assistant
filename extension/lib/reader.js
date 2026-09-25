@@ -16,10 +16,10 @@
  * - 按钮和译文都挂在扩展自己的 Shadow DOM 里，绝不修改页面内容本身。
  */
 
-import { detectLanguageByRatio } from './languages.js';
+import { detectLanguageByRatio, languageName } from './languages.js';
 import { MAX_TEXT_LENGTH } from './text.js';
 import { findMainContentRoot, shouldSkipBlock, looksLikeAppPage } from './content-extract.js';
-import { t } from './i18n.js';
+import { t, uiLang } from './i18n.js';
 
 /** popup 与 content script 共用的开关存储键 */
 export const HOVER_STORAGE_KEY = 'hoverTranslate';
@@ -36,6 +36,12 @@ const BATCH_LIMIT = 200;
 
 /** DOM 变动的合并窗口：无限滚动/SPA 一次能连着插入几十个节点，逐个重扫没有意义 */
 const MUTATION_DEBOUNCE = 400;
+
+/**
+ * 「读」模式的目标语言默认值。扩展侧固定看中文；App 侧的目标语言由原生层配置
+ * （可以是 en），必须从 deps 传进来——写死中文会让「中译英」方向的整页双语一段都不翻。
+ */
+const READ_TARGET = 'zh';
 
 const bubbleIdle = () => t('bubble_idle');
 
@@ -205,8 +211,12 @@ function buildResult() {
  *   transient user activation 还活着的时候去踹需要手势的动作
  *   （Chrome 内建引擎的语言包下载：模型没就绪时没有手势就必然被拒）。
  *   放在这里而不是翻译函数里，是因为翻译链路是异步的，等到那儿手势可能已经过期。
+ * @param {string} [deps.targetLanguage]
+ *   「读」方向的目标语言。原文已经是这门语言的段落不翻、不显按钮，
+ *   已经插好的译文在原文被换成这门语言时自动撤掉。默认中文。
  */
-export function createHoverReader({ getHost, getShadow, translateParagraph, onUserIntent }) {
+export function createHoverReader({ getHost, getShadow, translateParagraph, onUserIntent, targetLanguage }) {
+  const readTarget = targetLanguage ?? READ_TARGET;
   let enabled = false;
   let target = null;               // 当前悬停的段落
   let pill = null;                 // 段落旁的「译」按钮
@@ -237,6 +247,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   let mutationObserver = null;
   let mutationTimer = null;
   const pendingRoots = new Set();  // 页面新插入、等着重扫的子树
+  const textChanged = new Set();   // 原文被改写、等着复核语言的译文所属块
 
   /**
    * 节点是否属于扩展自己。两处要用：
@@ -423,7 +434,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
       if (!isVisible(el)) continue;
       const text = paragraphText(el);
       if (text.length < 2 || text.length > MAX_TEXT_LENGTH) continue;
-      if (detectLanguageByRatio(text) === 'zh') continue;
+      if (detectLanguageByRatio(text) === readTarget) continue;
       blocks.push(el);
     }
     return blocks;
@@ -544,27 +555,82 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     for (const node of roots) {
       if (node.isConnected) scan(node);
     }
+    const changed = [...textChanged];
+    textChanged.clear();
+    if (changed.length) retireStaleTranslations(changed);
   };
 
-  /** 动态页面（无限滚动、SPA）新插入的段落也要翻 */
+  /**
+   * 从被改动的文本节点向上找它所属的、当前显示着译文的那个块。
+   * 逐层查 results（WeakMap）而不是先收集全部译文块，是为了让每次变动的代价
+   * 只跟 DOM 深度成正比——整页翻译会一次性抛出几百条 characterData 变动。
+   */
+  const translatedOwner = node => {
+    let el = node?.parentElement ?? null;
+    while (el) {
+      const result = results.get(el);
+      if (result?.host.isConnected && !result.host.hidden) return el;
+      el = el.parentElement;
+    }
+    return null;
+  };
+
+  /**
+   * 原文自己变成了目标语言 → 这条译文就是「中文译中文」，撤掉。
+   *
+   * 触发场景（用户实拍）：我们先做了整页双语，随后 Chrome 内置翻译把整页正文
+   * 原地换成中文。译文在 Shadow DOM 里，Chrome 碰不到，于是中文原文下面挂着
+   * 一条中文译文。判定不能只在页面加载时做一次——原文是会被换掉的。
+   */
+  const retireStaleTranslations = els => {
+    let retired = 0;
+    for (const el of els) {
+      const result = results.get(el);
+      if (!result?.host.isConnected) continue;
+      if (detectLanguageByRatio(paragraphText(el)) !== readTarget) continue;
+      result.host.remove();
+      results.delete(el);
+      // 当成没翻过：万一原文又换回外语，这段还得能重新翻
+      seen.delete(el);
+      queued.delete(el);
+      retired += 1;
+    }
+    if (!retired) return;
+    pruneBatchNodes();
+    // 一条不剩时把原因写在按钮上，别让用户以为是双语对照坏了
+    if (!translatedCount() && !queue.length) {
+      bubbleNotice = { text: t('bubble_page_now_target', { lang: languageName(readTarget, uiLang()) }) };
+    }
+    updateBubble();
+  };
+
+  /** 动态页面（无限滚动、SPA）新插入的段落也要翻；原文被改写也要复核 */
   const watchDom = () => {
     if (mutationObserver || typeof MutationObserver !== 'function') return;
     mutationObserver = new MutationObserver(mutations => {
       // 只扫新插入的子树。整页重扫既慢，又会被扩展自己插入译文节点的变动再次触发，
       // 形成「插入 → 重扫 → 插入」的自激循环
       for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          const owner = translatedOwner(mutation.target);
+          if (owner) textChanged.add(owner);
+          continue;
+        }
         for (const node of mutation.addedNodes) {
           if (node.nodeType !== 1 || isOwnUi(node)) continue;
           pendingRoots.add(node);
         }
       }
-      if (!pendingRoots.size) return;
+      if (!pendingRoots.size && !textChanged.size) return;
       clearTimeout(mutationTimer);
       mutationTimer = setTimeout(flushPendingRoots, MUTATION_DEBOUNCE);
     });
+    // characterData：Chrome 的整页翻译不改结构，只把文本节点的内容原地换掉，
+    // 只听 childList 就永远看不见「原文已经不是外语了」
     mutationObserver.observe(document.body ?? document.documentElement, {
       childList: true,
-      subtree: true
+      subtree: true,
+      characterData: true
     });
   };
 
@@ -576,6 +642,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     clearTimeout(mutationTimer);
     mutationTimer = null;
     pendingRoots.clear();
+    textChanged.clear();
   };
 
   const stop = () => {
@@ -684,7 +751,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     const text = paragraphText(el);
     if (text.length < 2 || text.length > MAX_TEXT_LENGTH) return hidePill();
     // 中文段落对中文读者没有翻译价值，不出按钮
-    if (detectLanguageByRatio(text) === 'zh') return hidePill();
+    if (detectLanguageByRatio(text) === readTarget) return hidePill();
 
     showPill(el);
   };

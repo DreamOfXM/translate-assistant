@@ -633,6 +633,7 @@ async function translateParagraph(text) {
 }
 
 const hoverReader = createHoverReader({
+  targetLanguage: READ_TARGET_LANGUAGE,
   getHost: () => host,
   getShadow: () => {
     mount();
