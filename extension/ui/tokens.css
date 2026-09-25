@@ -6,7 +6,7 @@
  * 无法引用本文件，内嵌的值必须与此处保持同步（改色先改这里）。
  *
  * 风格：Google 翻译式中性面板 —— 白/浅灰容器 + 发丝边 + 单一实色蓝 + 药丸动作，
- * 无渐变、无彩色投影（设计来源见 docs/design-history/r03/s02-google.html）。
+ * 无渐变、无彩色投影。
  */
 
 /* hidden 属性兜底。UA 的 [hidden]{display:none} 只是普通声明，元素自身的 class

@@ -8,7 +8,7 @@
  * Shadow DOM 里引用不到外部 CSS 变量，只能内嵌同样的值。
  * 改动任一处颜色时，tokens.css / panel-styles.js / reader.js 的 PARA_STYLES 三处要一起改。
  *
- * 视觉语言（docs/design-history/r03/s02-google.html）：单一实色蓝 #1A73E8、
+ * 视觉语言（对齐 Google 翻译的版式）：单一实色蓝 #1A73E8、
  * 发丝边 #DADCE0、译文块浅蓝填充 #E8F0FE、容器 20/24 圆角、动作全药丸、
  * 阴影只有中性灰两档，**不用渐变、不用彩色投影**。
  */
