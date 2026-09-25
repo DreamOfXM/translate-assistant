@@ -173,7 +173,7 @@ tests/e2e/            Playwright end-to-end smoke tests
 macos/                macOS menu bar app (Accessibility API reads/writes any input field, same
                       engine; plus an in-app page window for bilingual reading without the extension)
 scripts/              packaging and engine verification
-docs/                 store listing copy and demo assets
+docs/images/          demo GIFs for the README (zh + en sets)
 LICENSE               full MPL-2.0 license text
 ```
 

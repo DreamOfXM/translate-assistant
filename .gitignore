@@ -6,3 +6,8 @@ HANDOFF.md
 .workbuddy/
 docs/superpowers/
 macos/.build/
+
+# 内部规划与设计过程稿：只留本机，不进公开仓库
+docs/chrome-web-store.md
+tests/e2e/README.md
+docs/design-history/

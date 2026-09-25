@@ -169,7 +169,7 @@ tests/e2e/            Playwright 端到端冒烟测试
 macos/                macOS 菜单栏应用（辅助功能 API 读写任意输入框，复用同一引擎；
                       另有一个 App 内页面窗口，不装扩展也能整页双语）
 scripts/              打包与引擎验证脚本
-docs/                 商店文案与演示素材
+docs/images/          首页演示动图（中英各一套）
 LICENSE               MPL-2.0 许可证全文
 ```
 
