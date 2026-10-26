@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>翻译助手 · 隐私政策 / Privacy Policy</title>
+<style>
+  :root {
+    --brand: #1A73E8;
+    --brand-strong: #174EA6;
+    --bg: #FFFFFF;
+    --fg: #1F1F1F;
+    --fg-muted: #5F6368;
+    --line: #E3E6EA;
+    --surface: #F8F9FA;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --brand: #8AB4F8;
+      --brand-strong: #C2E7FF;
+      --bg: #171717;
+      --fg: #E8EAED;
+      --fg-muted: #9AA0A6;
+      --line: #3C4043;
+      --surface: #202124;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  main { max-width: 780px; margin: 0 auto; padding: 56px 24px 96px; }
+  header { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 36px; }
+  .mark { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .mark svg { width: 40px; height: 40px; display: block; }
+  .mark span { font-size: 15px; font-weight: 600; color: var(--fg-muted); letter-spacing: .02em; }
+  h1 { font-size: 28px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -.01em; }
+  .meta { color: var(--fg-muted); font-size: 14px; }
+  h2 { font-size: 20px; margin: 44px 0 12px; letter-spacing: -.01em; }
+  h3 { font-size: 16px; margin: 26px 0 8px; }
+  p, li { margin: 10px 0; }
+  ul { padding-left: 22px; }
+  .lede {
+    background: var(--surface);
+    border-left: 3px solid var(--brand);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 0 0 8px;
+    font-size: 16.5px;
+  }
+  .lede strong { color: var(--brand-strong); }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--fg-muted); font-weight: 600; white-space: nowrap; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13.5px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  hr.section { border: 0; border-top: 1px solid var(--line); margin: 56px 0 8px; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--fg-muted); font-size: 13.5px; }
+  @media print { main { padding: 0; } body { background: #fff; color: #000; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="mark">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" aria-hidden="true">
+      <rect width="512" height="512" rx="112" fill="#1A73E8"/>
+      <rect x="112" y="128" width="288" height="204" rx="52" fill="#ffffff"/>
+      <path d="M232 316 L150 388 L196 316 Z" fill="#ffffff"/>
+      <text x="256" y="248" font-family="PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif"
+            font-size="150" font-weight="700" fill="#1A73E8" text-anchor="middle"
+            dominant-baseline="central">译</text>
+    </svg>
+    <span>翻译助手 Translate Assistant</span>
+  </div>
+  <h1>隐私政策 / Privacy Policy</h1>
+  <p class="meta">生效日期 2026-10-26 · 适用版本 1.2.1（Chrome 扩展）· 开发者 DreamOfXM</p>
+</header>
+
+<p class="lede">
+  <strong>一句话：翻译全部在你的设备上完成。</strong>
+  我们不收集、不上传、不存储你的任何文本——选中的文字、网页正文、输入框里的草稿，都只在你的浏览器里处理。
+</p>
+
+<h2>一、我们处理哪些数据，在哪里处理</h2>
+<p>扩展的唯一用途是翻译。下列数据只在你的设备内存中处理，处理完即释放，不会发送到任何服务器，也不会写入我们的存储（我们没有这样的存储）：</p>
+<ul>
+  <li>你选中的文本；</li>
+  <li>你正在浏览的网页正文段落（用于生成双语对照）；</li>
+  <li>你在网页输入框中撰写的草稿（仅在你主动点击翻译并确认后，译文才会被写回输入框）。</li>
+</ul>
+<p>翻译引擎有两套，都在本地运行：浏览器自带的端上翻译模型（Chrome 138+ 且该语言方向可用时优先），以及扩展内置的 <code>bergamot-translator</code> WebAssembly 引擎。两者的推理过程都不联网。</p>
+
+<h2>二、唯一的网络请求</h2>
+<p>为了让离线翻译可用，扩展需要下载语言包。这是本扩展<strong>唯一</strong>的网络行为：</p>
+<table>
+  <tr><th>目标</th><td><code>storage.googleapis.com</code>（Mozilla 公开的翻译模型仓库）</td></tr>
+  <tr><th>内容</th><td>模型、词表、字符模型等数据文件，以及一份模型清单</td></tr>
+  <tr><th>是否携带你的数据</th><td>否。请求使用 <code>credentials: 'omit'</code>，不包含你的文本、cookie 或账号信息</td></tr>
+  <tr><th>触发方式</th><td>仅在你于「语言包管理」页面主动点击下载时发起；自动更新不会在后台偷偷进行</td></tr>
+  <tr><th>完整性</th><td>下载后按 SHA-256 校验，损坏的文件会被丢弃并重下</td></tr>
+</table>
+<p>下载回来的语言包保存在你本机的浏览器存储里，可以随时在设置页删除。</p>
+
+<h2>三、本地存储了什么</h2>
+<p>扩展使用 <code>chrome.storage.local</code> 保存以下配置，它们不会离开你的设备：</p>
+<ul>
+  <li>界面语言（中文 / English）；</li>
+  <li>功能开关（是否自动双语、是否启用选中翻译、浮动按钮显示方式等）；</li>
+  <li>已安装语言包的记录（语言方向、体积、校验值、安装时间）。</li>
+</ul>
+<p>卸载扩展会一并删除上述数据与已下载的语言包。</p>
+
+<h2>四、权限及其用途</h2>
+<p>扩展申请的每一项权限都只服务于「翻译」这一个用途：</p>
+<table>
+  <tr><th>权限</th><th>用途</th></tr>
+  <tr><td><code>storage</code></td><td>保存界面语言、功能开关和语言包记录</td></tr>
+  <tr><td><code>contextMenus</code></td><td>右键菜单中的「翻译选中文本」入口</td></tr>
+  <tr><td><code>offscreen</code></td><td>Manifest V3 的 Service Worker 不能创建 Web Worker，翻译引擎（WASM）需要在离屏文档中运行</td></tr>
+  <tr><td>所有网站的内容脚本<br>（content script）</td><td>翻译发生在你正在看的页面上：读取正文段落用于插入译文，在网页输入框中写回译文。不读取与你当前操作无关的数据，不记录浏览历史</td></tr>
+  <tr><td><code>storage.googleapis.com</code><br>（主机权限）</td><td>仅用于下载语言包</td></tr>
+</table>
+
+<h2>五、我们明确不做的事</h2>
+<ul>
+  <li>不收集个人身份信息，不需要登录，没有账号体系；</li>
+  <li>不出售、不出租、不共享、不转让任何用户数据给第三方；</li>
+  <li>不将数据用于广告、画像、信用评估或任何与翻译无关的目的；</li>
+  <li>不读取浏览历史、书签、密码、下载记录；</li>
+  <li>不包含统计分析、埋点、广告或任何第三方 SDK；</li>
+  <li>不加载远程代码。所有可执行的代码（含 WASM 引擎）都包含在安装包内，从网络取回的只有模型数据。</li>
+</ul>
+<p>本扩展对数据的处理符合 Chrome 应用商店用户数据政策的「有限使用（Limited Use）」要求：数据仅用于提供和改进用户当前可见的单一功能。</p>
+
+<h2>六、数据保留与删除</h2>
+<p>我们不保留任何用户数据，因为我们从不接收。你设备上的数据由你完全掌控：</p>
+<ul>
+  <li>在设置页删除某个语言包，即可释放对应空间；</li>
+  <li>清除浏览器中该扩展的存储，或直接卸载扩展，所有本地数据立即消失；</li>
+  <li>卸载后我们没有可删除的副本，因为从来没有副本。</li>
+</ul>
+
+<h2>七、儿童</h2>
+<p>本扩展不是面向儿童设计的产品，也不会有意收集儿童信息——事实上它不收集任何人的信息。</p>
+
+<h2>八、政策变更</h2>
+<p>若未来功能变化导致本政策需要调整，我们会更新本页并修改顶部生效日期；涉及数据处理方式的实质性变化会在扩展更新说明中写明。</p>
+
+<h2>九、联系方式</h2>
+<p>对本政策或数据处理有任何疑问，可以通过以下方式联系：</p>
+<ul>
+  <li>GitHub Issues：<a href="https://github.com/DreamOfXM/translate-assistant/issues" target="_blank" rel="noopener">github.com/DreamOfXM/translate-assistant/issues</a></li>
+  <li>源码：<a href="https://github.com/DreamOfXM/translate-assistant" target="_blank" rel="noopener">github.com/DreamOfXM/translate-assistant</a>（MPL-2.0，欢迎审计）</li>
+</ul>
+
+<hr class="section">
+
+<div lang="en">
+<h1 style="font-size:26px;margin-top:44px">Privacy Policy</h1>
+<p class="meta">Effective 2026-10-26 · Version 1.2.1 (Chrome extension) · Developer DreamOfXM</p>
+
+<p class="lede">
+  <strong>In one sentence: translation happens entirely on your device.</strong>
+  We do not collect, upload or store any of your text — selected text, page content and input drafts never leave your browser.
+</p>
+
+<h2>1. What we process, and where</h2>
+<p>The extension has a single purpose: translation. The following data is processed only in your device's memory and is released afterwards. It is never sent to any server, and no copy is written to any storage of ours (we operate no such storage):</p>
+<ul>
+  <li>Text you select;</li>
+  <li>Paragraphs of the page you are currently reading (to build the bilingual view);</li>
+  <li>Drafts you type into web page input fields — the translation is written back only after you explicitly trigger it and confirm.</li>
+</ul>
+<p>Both translation engines run locally: Chrome's on-device model (preferred on Chrome 138+ when the language pair is available) and the bundled <code>bergamot-translator</code> WebAssembly engine. Neither performs inference over the network.</p>
+
+<h2>2. The only network request</h2>
+<p>To enable offline translation the extension downloads language packs. This is the extension's <strong>only</strong> network activity:</p>
+<table>
+  <tr><th>Endpoint</th><td><code>storage.googleapis.com</code> (Mozilla's public translation model repository)</td></tr>
+  <tr><th>Payload</th><td>Model, vocabulary and character model data files, plus a model index</td></tr>
+  <tr><th>Carries your data?</th><td>No. Requests use <code>credentials: 'omit'</code> and contain no user text, cookies or account information</td></tr>
+  <tr><th>Trigger</th><td>Only when you press download on the Pack manager page; no silent background updates</td></tr>
+  <tr><th>Integrity</th><td>Downloads are verified with SHA-256; damaged files are discarded and re-fetched</td></tr>
+</table>
+<p>Packs are stored in your own browser storage and can be deleted at any time from the options page.</p>
+
+<h2>3. What is stored locally</h2>
+<p>The extension stores configuration in <code>chrome.storage.local</code>, which never leaves your device: interface language, feature toggles, and records of installed language packs (direction, size, checksum, install time). Uninstalling the extension removes this data and the downloaded packs.</p>
+
+<h2>4. Permissions and why they are needed</h2>
+<table>
+  <tr><th>Permission</th><th>Purpose</th></tr>
+  <tr><td><code>storage</code></td><td>Persist UI language, toggles and pack records</td></tr>
+  <tr><td><code>contextMenus</code></td><td>Right-click "Translate selection" entry</td></tr>
+  <tr><td><code>offscreen</code></td><td>Manifest V3 service workers cannot create Web Workers; the WASM engine must run in an offscreen document</td></tr>
+  <tr><td>Content script on all sites</td><td>Translation happens on the page you are viewing: reading paragraphs to insert translations, and writing a translation back into page input fields. Nothing unrelated is read and no browsing history is recorded</td></tr>
+  <tr><td><code>storage.googleapis.com</code><br>(host permission)</td><td>Language pack download only</td></tr>
+</table>
+
+<h2>5. What we do not do</h2>
+<ul>
+  <li>No personal data collection, no sign-in, no account system;</li>
+  <li>No sale, rental, sharing or transfer of user data to third parties;</li>
+  <li>No use of data for advertising, profiling, creditworthiness or anything unrelated to translation;</li>
+  <li>No access to browsing history, bookmarks, passwords or downloads;</li>
+  <li>No analytics, telemetry, ads or third-party SDKs;</li>
+  <li>No remote code. All executable code, including the WASM engine, ships inside the package; only model data is fetched.</li>
+</ul>
+<p>This handling complies with the Chrome Web Store User Data Policy's Limited Use requirements: data is used solely to provide the single, user-facing feature.</p>
+
+<h2>6. Retention and deletion</h2>
+<p>We retain no user data because we never receive any. Everything on your device is under your control: delete a pack in the options page to reclaim space, or clear the extension's storage / uninstall the extension to remove all local data immediately.</p>
+
+<h2>7. Children</h2>
+<p>The extension is not directed at children and does not knowingly collect information from anyone — it collects no information at all.</p>
+
+<h2>8. Changes</h2>
+<p>If a future change requires an update to this policy, this page and the effective date above will be updated; material changes to data handling will be noted in the extension's release notes.</p>
+
+<h2>9. Contact</h2>
+<ul>
+  <li>Issues: <a href="https://github.com/DreamOfXM/translate-assistant/issues" target="_blank" rel="noopener">github.com/DreamOfXM/translate-assistant/issues</a></li>
+  <li>Source (MPL-2.0, open for audit): <a href="https://github.com/DreamOfXM/translate-assistant" target="_blank" rel="noopener">github.com/DreamOfXM/translate-assistant</a></li>
+</ul>
+</div>
+
+<footer>
+  翻译助手 Translate Assistant · 本页为 Chrome 应用商店要求的隐私政策页面 · 最近更新 2026-10-26
+</footer>
+
+</main>
+</body>
+</html>
