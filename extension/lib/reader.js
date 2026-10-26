@@ -659,9 +659,10 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   /** 自动模式：页面加载完就跑，段落滚进视口即翻译。
    *  工具型页面（GitHub、管理后台、表单页）不自动翻——把 Watch→观看 这种界面词
    *  翻得到处都是是纯灾难；悬浮按钮还在，用户手动点「双语对照」仍会执行。 */
+  let forceAll = false;            // 站点规则「总是翻译」：跳过工具页判定
   const startLive = () => {
     if (liveMode) return;
-    if (looksLikeAppPage(document)) {
+    if (!forceAll && looksLikeAppPage(document)) {
       bubbleNotice = { text: t('bubble_tool') };
       updateBubble();
       return;
@@ -753,6 +754,18 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     // 中文段落对中文读者没有翻译价值，不出按钮
     if (detectLanguageByRatio(text) === readTarget) return hidePill();
 
+    // 按住 Alt/Ctrl 悬停：跳过 pill 直接出双语（沉浸式同款快路径）
+    if (event.altKey || event.ctrlKey) {
+      const existing = results.get(el);
+      if (existing && existing.host.isConnected) {
+        if (existing.host.hidden) existing.host.hidden = false;
+      } else {
+        handle(el);
+      }
+      hidePill();
+      return;
+    }
+
     showPill(el);
   };
 
@@ -807,6 +820,16 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     },
     /** 自动翻译没有跑时的按钮提示（缺语言包/中文页/工具页） */
     setBubbleNotice,
+    /** 站点规则「总是翻译」：工具页判定跳过 */
+    setForceAll(value) {
+      forceAll = Boolean(value);
+    },
+    /** 快捷键入口：与点击悬浮按钮同一语义 */
+    toggleBilingual() {
+      if (!pageUi) this.setPageUi(true);
+      ensureBubble();
+      bubble?.click();
+    },
     setBubbleEngine,
     setBubbleDownload,
     /** 供测试注入事件 */

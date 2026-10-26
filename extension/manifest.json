@@ -44,5 +44,16 @@
       "all_frames": true,
       "match_about_blank": true
     }
+  ],
+  "commands": {
+    "toggle-bilingual": {
+      "suggested_key": {
+        "default": "Alt+T"
+      },
+      "description": "切换整页双语对照 / Toggle bilingual page"
+    }
+  },
+  "optional_host_permissions": [
+    "https://*/*"
   ]
 }

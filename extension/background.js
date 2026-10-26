@@ -231,6 +231,45 @@ async function rememberPacks(packs) {
 
 async function handle(message, sender) {
   switch (message?.type) {
+    case MESSAGES.AI_TRANSLATE: {
+      // AI 引擎（BYO Key，OpenAI 兼容接口）。用户在设置里填 Key 即视为同意
+      // 将该段文本发送给所选服务商——这是产品内唯一会上传文本的路径。
+      try {
+        const { aiConfig } = await chrome.storage.local.get('aiConfig');
+        const cfg = aiConfig;
+        if (!cfg?.enabled || !cfg?.apiKey || !cfg?.baseUrl || !cfg?.model) {
+          return { error: 'AI 引擎未配置' };
+        }
+        const url = `${cfg.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 90000);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
+          body: JSON.stringify({
+            model: cfg.model,
+            temperature: 0.2,
+            messages: [
+              { role: 'system', content: `You are a professional translation engine. Translate the user's text from ${message.sourceName ?? message.source} to ${message.targetName ?? message.target}. Output ONLY the translated text with no explanations, no quotes, preserving line breaks and formatting. If the text is already in the target language, output it unchanged.` },
+              { role: 'user', content: message.text }
+            ]
+          }),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (!res.ok) {
+          const detail = await res.text().catch(() => '');
+          return { error: `AI 服务返回 ${res.status}：${detail.slice(0, 200)}` };
+        }
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content?.trim();
+        if (!text) return { error: 'AI 返回为空' };
+        return { text, engine: 'ai' };
+      } catch (error) {
+        return { error: `AI 翻译失败：${error?.message ?? error}` };
+      }
+    }
+
     case MESSAGES.TRANSLATE: {
       const check = validateTranslateRequest(message);
       if (!check.ok) return { error: check.error };
@@ -350,6 +389,16 @@ async function applyUiLanguage() {
 }
 
 // 首次安装时打开欢迎页（更新不弹，避免打扰老用户）
+// 快捷键 Alt+T：切换当前页的整页双语（与右下角按钮同一语义）
+chrome.commands?.onCommand.addListener(async command => {
+  if (command !== 'toggle-bilingual') return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  try {
+    await chrome.tabs.sendMessage(tab.id, { type: EVENTS.TOGGLE_BILINGUAL });
+  } catch { /* 页面没有 content script（新标签页等） */ }
+});
+
 chrome.runtime.onInstalled.addListener(details => {
   setupContextMenu();
   if (details.reason === 'install') {

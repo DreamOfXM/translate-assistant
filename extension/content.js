@@ -16,7 +16,7 @@ import {
   createHoverReader, HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY
 } from './lib/reader.js';
 import { MESSAGES, EVENTS, planPacks, isDirectionReady } from './lib/protocol.js';
-import { findMainContentRoot, isNeverAutoSite, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
+import { findMainContentRoot, isNeverAutoSite, DEFAULT_NEVER_AUTO_SITES, MIN_CJK_FOR_ZH_PAGE } from './lib/content-extract.js';
 import { chromeTranslatorAvailable, chromeTranslatorStatus, chromeTranslatorLastError, markUserGesture, chromeTranslateFirst } from './lib/chrome-translator.js';
 import { PANEL_STYLES } from './lib/panel-styles.js';
 import { readInput, writeInput, isEditableInput, isInputAlive } from './lib/input.js';
@@ -166,7 +166,43 @@ async function tryChromeTranslation(text, source, target) {
   return null;
 }
 
+/** AI 引擎（BYO Key）配置缓存；页面生命周期内读一次 */
+let aiConfigCache = undefined;
+async function aiConfig() {
+  if (aiConfigCache !== undefined) return aiConfigCache;
+  try {
+    const stored = await chrome.storage.local.get('aiConfig');
+    const cfg = stored?.aiConfig;
+    aiConfigCache = cfg?.enabled && cfg?.apiKey && cfg?.baseUrl && cfg?.model ? cfg : null;
+  } catch {
+    aiConfigCache = null;
+  }
+  return aiConfigCache;
+}
+
+/** AI 引擎翻译一段：配置了且启用才走；失败回落（返回 null） */
+async function tryAiTranslation(text, source, target) {
+  const cfg = await aiConfig();
+  if (!cfg) return null;
+  try {
+    const resp = await chrome.runtime.sendMessage({
+      type: MESSAGES.AI_TRANSLATE,
+      text,
+      source,
+      target,
+      sourceName: languageName(source, uiLang()),
+      targetName: languageName(target, uiLang())
+    });
+    if (!resp || resp.error || !resp.text) return null;
+    return { text: resp.text, engine: 'ai' };
+  } catch {
+    return null;
+  }
+}
+
 async function requestTranslation(text, source, target) {
+  const ai = await tryAiTranslation(text, source, target);
+  if (ai !== null) return ai;
   const chromeText = await tryChromeTranslation(text, source, target);
   if (chromeText !== null) return { text: chromeText, engine: 'chrome' };
 
@@ -269,7 +305,7 @@ function openResultCard({ text, rect }) {
       const outcome = await translate({ text, source, target: to, onProgress: showProgress });
       translated = outcome.text;
       showResult({ result, label: outputLabel, copyButton }, translated, languageName(to));
-      const engineLabel = t(outcome.engine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
+      const engineLabel = t(outcome.engine === 'ai' ? 'engine_ai_label' : outcome.engine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
       status(message, (outcome.segments > 1 ? t('status_result_segmented', { n: outcome.segments }) : t('status_result_done')) + ' · ' + engineLabel, 'ok');
     } catch (error) {
       status(message, error.message, 'error');
@@ -648,6 +684,38 @@ const hoverReader = createHoverReader({
   })
 });
 
+// 快捷键 Alt+T：与右下角按钮同一语义——已译则收起，未译则开翻
+chrome.runtime.onMessage.addListener(message => {
+  if (message?.type !== 'TOGGLE_BILINGUAL') return false;
+  hoverReader?.toggleBilingual();
+  return false;
+});
+
+// popup 的「本站规则」快捷开关：content script 是唯一知道 location.host 的地方
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  const host = globalThis.location?.hostname ?? window.location?.hostname ?? '';
+  if (message?.type === 'GET_SITE_INFO') {
+    getSiteRule(host).then(rule => sendResponse({ host, rule }));
+    return true;   // 异步响应
+  }
+  if (message?.type === 'SET_SITE_RULE') {
+    const { rule } = message;
+    chrome.storage.local.get(SITE_RULES_KEY).then(stored => {
+      const rules = { ...(stored?.[SITE_RULES_KEY] ?? {}) };
+      if (rule === 'default') delete rules[host]; else rules[host] = rule;
+      return chrome.storage.local.set({ [SITE_RULES_KEY]: rules });
+    }).then(() => {
+      // 规则变更立即生效：never→停掉本页翻译；always→强制开翻
+      if (rule === 'never') { hoverReader?.setAuto(false); hoverReader?.setPageUi(true); hoverReader?.setBubbleNotice({ text: t('bubble_site_user') }); }
+      if (rule === 'always') { hoverReader?.setForceAll(true); hoverReader?.setBubbleNotice(null); hoverReader?.setAuto(true); }
+      sendResponse({ ok: true });
+    }).catch(e => sendResponse({ error: String(e) }));
+    return true;
+  }
+  return false;
+});
+
+
 /**
  * 页面文字取样，用来判断整页是什么语言。
  * 不用 body.innerText：它会强制整页重排，而且这只在页面加载时跑一次，不值得。
@@ -751,12 +819,31 @@ async function chromeEngineStatus(source, target) {
   }
 }
 
+/** 本站规则：{ host: 'always' | 'never' }，存 chrome.storage.local */
+const SITE_RULES_KEY = 'siteRules';
+
+/** 当前站点的用户规则；'default' 表示未设置 */
+async function getSiteRule(host) {
+  try {
+    const stored = await chrome.storage.local.get(SITE_RULES_KEY);
+    return stored?.[SITE_RULES_KEY]?.[host] ?? 'default';
+  } catch {
+    return 'default';
+  }
+}
+
 async function autoStart() {
   await i18nReady;
-  // 站点黑名单先行：GitHub 这类应用型站点每一页都是界面零件，
-  // 主流做法（Chrome「永不翻译这些网站」、沉浸式翻译「永不翻译此网站」）
-  // 都是站点级开关；手动点「双语对照」仍然可翻。
-  if (isNeverAutoSite(globalThis.location?.hostname ?? window.location?.hostname)) {
+  const host = globalThis.location?.hostname ?? window.location?.hostname ?? '';
+  const rule = host ? await getSiteRule(host) : 'default';
+  // 用户显式规则优先于一切内置判定
+  if (rule === 'never') {
+    hoverReader.setBubbleNotice({ text: t('bubble_site_user') });
+    return;
+  }
+  // 站点黑名单：GitHub 这类应用型站点每一页都是界面零件；
+  // 「总是翻译」规则可以覆盖内置黑名单
+  if (rule !== 'always' && isNeverAutoSite(host)) {
     hoverReader.setBubbleNotice({ text: t('bubble_site') });
     return;
   }
@@ -775,6 +862,7 @@ async function autoStart() {
   }
   // Chrome 内建引擎模型尚未下载（downloadable）时：自动模式绝不静默触发下载，
   // 但按钮会明确告诉用户「点一下就开始下载并翻译」——用户的点击即同意。
+  if (rule === 'always') hoverReader.setForceAll(true);
   const chrome = await chromeEngineStatus(source, READ_TARGET_LANGUAGE);
   // 「这次为什么没走谷歌模型」的唯一现场证据，排查先看这一行（available 才代表模型已落盘可用）
   console.info('[翻译助手] Chrome 内建引擎可用性：', chrome.status, chrome);

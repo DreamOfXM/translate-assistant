@@ -132,7 +132,7 @@ async function run() {
       { onProgress: showProgress }
     );
     showResult(outcome.text, t('output_label_named', { name: languageName(target, uiLang()) }));
-    const engineLabel = t(lastEngine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
+    const engineLabel = t(lastEngine === 'ai' ? 'engine_ai_label' : lastEngine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
     setStatus((outcome.segments > 1 ? t('status_done_segments', { n: outcome.segments }) : t('status_done')) + ' · ' + engineLabel, 'ok');
   } catch (error) {
     setStatus(error.message, 'error');
@@ -183,6 +183,25 @@ function bindToggle(id, key, defaultValue) {
   };
   return toggle;
 }
+
+// ── 本站规则：向活动标签页的 content script 查询 host 与当前规则 ──
+async function initSiteRule() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id) return;
+    const info = await chrome.tabs.sendMessage(tab.id, { type: 'GET_SITE_INFO' }).catch(() => null);
+    if (!info?.host) return;   // 扩展自身页面等没有 content script 的地方隐藏该行
+    document.querySelector('.site-row').style.display = '';
+    const select = $('site-rule');
+    select.value = info.rule;
+    select.onchange = async () => {
+      await chrome.tabs.sendMessage(tab.id, { type: 'SET_SITE_RULE', rule: select.value });
+    };
+  } catch {
+    document.querySelector('.site-row').style.display = 'none';
+  }
+}
+initSiteRule();
 
 bindToggle('auto', AUTO_STORAGE_KEY, true);
 bindToggle('page', PAGE_STORAGE_KEY, true);

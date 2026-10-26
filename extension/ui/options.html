@@ -29,6 +29,23 @@
         </div>
       </header>
 
+      <section class="ai-section">
+        <h2 data-i18n="ai_title">AI 引擎（自带 Key，质量最高）</h2>
+        <p class="hint" data-i18n="ai_hint">填入任意 OpenAI 兼容服务（DeepSeek / 通义 / GLM / OpenAI）。启用后翻译文本会发送给该服务商；不启用则全部本地。</p>
+        <div class="ai-grid">
+          <label class="ai-check"><input type="checkbox" id="ai-enabled" /> <span data-i18n="ai_enabled">启用 AI 引擎</span></label>
+          <label><span data-i18n="ai_baseurl">接口地址</span>
+            <input id="ai-baseurl" type="url" data-i18n-placeholder="ai_baseurl_ph" placeholder="例如 https://api.deepseek.com" /></label>
+          <label><span data-i18n="ai_key">API Key</span>
+            <input id="ai-key" type="password" data-i18n-placeholder="ai_key_ph" placeholder="sk-…" autocomplete="off" /></label>
+          <label><span data-i18n="ai_model">模型</span>
+            <input id="ai-model" type="text" data-i18n-placeholder="ai_model_ph" placeholder="例如 deepseek-chat" /></label>
+        </div>
+        <p class="ai-note" data-i18n="ai_note">Key 只存本机（chrome.storage），只发往你填写的接口地址。</p>
+        <button id="ai-save" class="ai-save" type="button" data-i18n="ai_save">保存 AI 设置</button>
+        <p class="status" id="ai-status"></p>
+      </section>
+
       <div class="lang-row">
         <label for="ui-lang" data-i18n="ui_language">界面语言</label>
         <select id="ui-lang">

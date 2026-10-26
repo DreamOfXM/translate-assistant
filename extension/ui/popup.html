@@ -90,6 +90,19 @@
       </div>
     </section>
 
+    <div class="site-row" style="display:none">
+      <svg class="row-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M3.5 12h17M12 3.5c2.6 2.4 4 5.2 4 8.5s-1.4 6.1-4 8.5c-2.6-2.4-4-5.2-4-8.5s1.4-6.1 4-8.5Z" fill="none" stroke="currentColor" stroke-width="1.4"/>
+      </svg>
+      <span data-i18n="site_rule">本站</span>
+      <select id="site-rule" class="site-select">
+        <option value="default" data-i18n="site_rule_default">默认</option>
+        <option value="always" data-i18n="site_rule_always">总是翻译</option>
+        <option value="never" data-i18n="site_rule_never">从不翻译</option>
+      </select>
+    </div>
+
     <footer>
       <span id="packs">…</span>
       <button id="manage" class="link" type="button" data-i18n="packs_manage">语言包管理</button>

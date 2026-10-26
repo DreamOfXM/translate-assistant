@@ -233,6 +233,55 @@ searchInput.addEventListener('input', () => {
 
 $('refresh').onclick = refresh;
 
+// ── AI 引擎（BYO Key）──
+const $ai = id => document.getElementById(id);
+
+async function loadAiConfig() {
+  try {
+    const { aiConfig: cfg } = await chrome.storage.local.get('aiConfig');
+    $ai('ai-enabled').checked = Boolean(cfg?.enabled);
+    $ai('ai-baseurl').value = cfg?.baseUrl ?? '';
+    $ai('ai-key').value = cfg?.apiKey ?? '';
+    $ai('ai-model').value = cfg?.model ?? '';
+  } catch { /* 读取失败用空表单 */ }
+}
+
+function aiStatus(message, kind = '') {
+  const node = $ai('ai-status');
+  node.textContent = message ?? '';
+  node.className = `status${kind ? ` ${kind}` : ''}`;
+}
+
+async function saveAiConfig() {
+  const cfg = {
+    enabled: $ai('ai-enabled').checked,
+    baseUrl: $ai('ai-baseurl').value.trim().replace(/\/+$/, ''),
+    apiKey: $ai('ai-key').value.trim(),
+    model: $ai('ai-model').value.trim()
+  };
+  if (cfg.enabled && (!cfg.baseUrl || !cfg.apiKey || !cfg.model)) {
+    aiStatus('启用 AI 引擎需要填写接口地址、API Key 和模型。', 'error');
+    return;
+  }
+  if (cfg.enabled) {
+    // 向该服务商的 origin 申请跨域权限（MV3 后台 fetch 受 CORS 约束）
+    let origin;
+    try { origin = new URL(cfg.baseUrl).origin; } catch {
+      aiStatus('接口地址不是合法的 URL。', 'error');
+      return;
+    }
+    try {
+      const granted = await chrome.permissions.request({ origins: [`${origin}/*`] });
+      if (!granted) { aiStatus(t('ai_permission_denied'), 'error'); return; }
+    } catch (e) {
+      aiStatus(String(e?.message ?? e), 'error');
+      return;
+    }
+  }
+  await chrome.storage.local.set({ aiConfig: cfg });
+  aiStatus(t('ai_saved'), 'ok');
+}
+
 // 界面语言：切换后存盘并刷新页面，全部文案按新语言重画
 $('ui-lang').onchange = event => {
   setUiLang(event.target.value);
@@ -241,6 +290,8 @@ $('ui-lang').onchange = event => {
 
 initI18n().then(() => {
   applyI18n(document);
+  loadAiConfig();
+  $ai('ai-save').onclick = saveAiConfig;
   chrome.storage.local.get('uiLang').then(stored => {
     $('ui-lang').value = stored?.uiLang ?? '';
   }).catch(() => {});

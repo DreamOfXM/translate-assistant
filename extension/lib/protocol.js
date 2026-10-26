@@ -8,6 +8,7 @@ import { parseDirectionKey, languageName, isKnownLanguage, directionKey } from '
 
 /** 扩展页面 → Service Worker */
 export const MESSAGES = {
+  AI_TRANSLATE: 'AI_TRANSLATE',
   TRANSLATE: 'TRANSLATE',
   PRELOAD_DIRECTION: 'PRELOAD_DIRECTION',
   DELETE_DIRECTION: 'DELETE_DIRECTION',
@@ -18,6 +19,7 @@ export const MESSAGES = {
 
 /** Service Worker → content script 等 */
 export const EVENTS = {
+  TOGGLE_BILINGUAL: 'TOGGLE_BILINGUAL',
   SHOW_TRANSLATOR: 'SHOW_TRANSLATOR',
   TRANSLATION_PROGRESS: 'TRANSLATION_PROGRESS'
 };
