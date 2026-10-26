@@ -38,6 +38,7 @@ globalThis.HTMLTextAreaElement = window.HTMLTextAreaElement;
 globalThis.HTMLInputElement = window.HTMLInputElement;
 
 const translateCalls = [];
+let wordbookStore = [];   // 生词本 mock 存储
 const storageListeners = [];
 let hoverSetting = false;
 let installedPacks = [];   // 自动翻译前会先查语言包，为空则不自动翻（默认不自动，避免污染其它用例）
@@ -59,8 +60,18 @@ globalThis.chrome = {
   },
   storage: {
     local: {
-      get: async () => ({ hoverTranslate: hoverSetting, uiLang: 'zh' }),
-      set: async () => {}
+      get: async keys => {
+        const base = { hoverTranslate: hoverSetting, uiLang: 'zh' };
+        if (keys === 'wordbook' || (Array.isArray(keys) && keys.includes('wordbook'))) {
+          base.wordbook = wordbookStore.slice();
+        }
+        return base;
+      },
+      set: async obj => {
+        if (obj && typeof obj === 'object' && 'wordbook' in obj) {
+          wordbookStore = obj.wordbook;
+        }
+      },
     },
     onChanged: { addListener: listener => storageListeners.push(listener) }
   }
@@ -88,6 +99,7 @@ const reset = () => {
     }
   }
   translateCalls.length = 0;
+  wordbookStore = [];
   // 恢复悬停翻译默认关闭
   storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: false } }, 'local'));
   // 重建悬浮按钮，清掉上一个用例遗留的「缺语言包/中文页」提示
@@ -239,6 +251,32 @@ test('就地译文条：输入框已有草稿时不再打开完整面板，填�
   comment.value = '';
 });
 
+test('选中卡片「收藏」写入生词本并可去重', async () => {
+  reset();
+  const paragraph = window.document.getElementById('para');
+  paragraph.textContent = 'A memorable phrase worth saving to the word book.';
+  const range = window.document.createRange();
+  range.selectNodeContents(paragraph);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  paragraph.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+  await tick();
+  shadow().querySelector('.lt-float.lt-selection').click();   // 点「翻译选中」才出卡片
+  await tick();
+  const card = shadow().querySelector('.lt-card');
+  const saveButton = card.querySelector('.lt-save');
+  assert.ok(saveButton, '卡片应有收藏按钮');
+  await tick();   // mock 翻译即时完成，解锁后断言
+  saveButton.click();
+  await tick();
+  saveButton.click();   // 重复点击：去重
+  assert.equal(wordbookStore.length, 1, '重复收藏应去重');
+  assert.match(wordbookStore[0].word, /memorable phrase/);
+  assert.match(wordbookStore[0].translation, /译文/);
+  window.document.getElementById('para').textContent = 'Local translation runs entirely on your device.';
+});
+
 test('就地译文条：空输入框仍打开完整面板', async () => {
   reset();
   const comment = window.document.getElementById('comment');
@@ -275,6 +313,7 @@ test('回复面板：只填入译文，不触发任何提交', async () => {
 
 test('选中文本翻译：结果卡片展示译文，且不动任何输入框', async () => {
   reset();
+  window.document.getElementById('para').textContent = 'Local translation runs entirely on your device.';
   const comment = window.document.getElementById('comment');
   comment.value = '原始草稿';
 

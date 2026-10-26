@@ -60,6 +60,16 @@ h2 { margin: 32px 0 6px; font-size: 16px; font-weight: 500; }
   box-shadow: 0 3px 10px rgba(14, 165, 233, .25);
 }
 
+/* ── 生词本 ───────────────────────────────── */
+.wb-toolbar { display: flex; align-items: center; gap: 14px; margin: 10px 0; font-size: 13px; color: var(--text-2); }
+.wb-danger { color: var(--danger); }
+.wb-list { display: flex; flex-direction: column; max-height: 320px; overflow: auto; }
+.wb-row { display: flex; gap: 12px; padding: 8px 2px; border-bottom: 1px solid var(--line); font-size: 13.5px; align-items: baseline; }
+.wb-row:last-child { border-bottom: 0; }
+.wb-word { font-weight: 600; flex: 0 0 38%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-trans { color: var(--text-2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-host { color: var(--text-3); font-size: 11.5px; flex: none; }
+
 /* ── 界面语言 ─────────────────────────────── */
 .lang-row { display: flex; align-items: center; gap: 10px; margin: 20px 0 0; font-size: 13px; }
 .lang-row label { font-weight: 500; color: var(--text-2); }

@@ -46,6 +46,18 @@
         <p class="status" id="ai-status"></p>
       </section>
 
+      <section class="ai-section" id="wordbook-section">
+        <h2 data-i18n="wordbook">生词本</h2>
+        <p class="hint" data-i18n="wordbook_hint">选中翻译卡片上的「收藏」把生词存到这里；CSV 可直接导入 Anki（正面=原文，背面=译文）。</p>
+        <div class="wb-toolbar">
+          <span id="wb-count"></span>
+          <span class="spacer"></span>
+          <button id="wb-export" class="link" type="button" data-i18n="wordbook_export">导出 CSV（Anki）</button>
+          <button id="wb-clear" class="link wb-danger" type="button" data-i18n="wordbook_clear">清空</button>
+        </div>
+        <div id="wordbook-list" class="wb-list"></div>
+      </section>
+
       <div class="lang-row">
         <label for="ui-lang" data-i18n="ui_language">界面语言</label>
         <select id="ui-lang">

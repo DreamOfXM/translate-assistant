@@ -269,6 +269,7 @@ function openResultCard({ text, rect }) {
     <div class="lt-actions">
       <button class="lt-button lt-translate" type="button">${t('retranslate')}</button>
       <button class="lt-button ghost lt-copy" type="button" disabled>${t('copy_translation')}</button>
+      <button class="lt-button ghost lt-save" type="button" disabled>${t('save_word')}</button>
     </div>
     <div class="lt-bar" hidden><i></i></div>
     <p class="lt-status"></p>
@@ -281,6 +282,7 @@ function openResultCard({ text, rect }) {
   place(card, rect.left, (rect.bottom || rect.top) + 8, 400);
 
   const translateButton = card.querySelector('.lt-translate');
+  const saveButton = card.querySelector('.lt-save');
   const copyButton = card.querySelector('.lt-copy');
   const outputLabel = card.querySelector('.lt-output-label');
   const result = card.querySelector('.lt-result');
@@ -298,6 +300,27 @@ function openResultCard({ text, rect }) {
 
   let translated = '';
 
+  // 生词本：收藏原文+译文+出处，供「语言包管理」页复习/导出 Anki
+  saveButton.onclick = async () => {
+    if (!translated) return;
+    try {
+      const { wordbook = [] } = await chrome.storage.local.get('wordbook');
+      const entry = {
+        word: text.trim().slice(0, 300),
+        translation: translated.trim().slice(0, 600),
+        host: globalThis.location?.hostname ?? window.location?.hostname ?? '',
+        at: Date.now()
+      };
+      const deduped = wordbook.filter(w => !(w.word === entry.word && w.translation === entry.translation));
+      deduped.unshift(entry);
+      await chrome.storage.local.set({ wordbook: deduped.slice(0, 2000) });
+      saveButton.textContent = t('saved_word');
+      saveButton.disabled = true;
+      status(message, t('saved_word_hint'), 'ok');
+    } catch (error) {
+      status(message, String(error?.message ?? error), 'error');
+    }
+  };
   const langbar = bindLanguageBar(card, { onChange: () => { if (translated) run(); } });
   langbar.refresh(text);
 
@@ -315,6 +338,7 @@ function openResultCard({ text, rect }) {
       const outcome = await translate({ text, source, target: to, onProgress: showProgress });
       translated = outcome.text;
       showResult({ result, label: outputLabel, copyButton }, translated, languageName(to));
+      saveButton.disabled = false;
       const engineLabel = t(outcome.engine === 'ai' ? 'engine_ai_label' : outcome.engine === 'chrome' ? 'engine_chrome_label' : 'engine_local_label');
       status(message, (outcome.segments > 1 ? t('status_result_segmented', { n: outcome.segments }) : t('status_result_done')) + ' · ' + engineLabel, 'ok');
     } catch (error) {

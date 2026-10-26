@@ -288,9 +288,50 @@ $('ui-lang').onchange = event => {
   location.reload();
 };
 
+// ── 生词本 ──
+async function renderWordbook() {
+  try {
+    const { wordbook = [] } = await chrome.storage.local.get('wordbook');
+    document.getElementById('wb-count').textContent = t('wordbook_count', { n: wordbook.length });
+    const list = document.getElementById('wordbook-list');
+    if (!wordbook.length) {
+      list.innerHTML = `<p class="empty">${t('wordbook_empty')}</p>`;
+      return;
+    }
+    list.replaceChildren(...wordbook.slice(0, 200).map(item => {
+      const row = document.createElement('div');
+      row.className = 'wb-row';
+      const w = document.createElement('span'); w.className = 'wb-word'; w.textContent = item.word;
+      const tr = document.createElement('span'); tr.className = 'wb-trans'; tr.textContent = item.translation;
+      const h = document.createElement('span'); h.className = 'wb-host'; h.textContent = item.host ?? '';
+      row.append(w, tr, h);
+      return row;
+    }));
+  } catch { /* 忽略 */ }
+}
+
+document.getElementById('wb-export').onclick = async () => {
+  const { wordbook = [] } = await chrome.storage.local.get('wordbook');
+  if (!wordbook.length) return;
+  // Anki 友好 CSV：正面=原文，背面=译文，标签=来源站点
+  const esc = v => `"${String(v ?? '').replaceAll('"', '""')}"`;
+  const csv = ['word,translation,tags', ...wordbook.map(w => [esc(w.word), esc(w.translation), esc(w.host)].join(','))].join('\n');
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `wordbook-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById('wb-clear').onclick = async () => {
+  await chrome.storage.local.set({ wordbook: [] });
+  renderWordbook();
+};
+
 initI18n().then(() => {
   applyI18n(document);
   loadAiConfig();
+  renderWordbook();
   $ai('ai-save').onclick = saveAiConfig;
   chrome.storage.local.get('uiLang').then(stored => {
     $('ui-lang').value = stored?.uiLang ?? '';
