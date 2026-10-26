@@ -231,6 +231,9 @@ async function rememberPacks(packs) {
 
 async function handle(message, sender) {
   switch (message?.type) {
+    case 'AI_RESET_CONTEXT':
+      return { ok: true };   // AI 上下文窗口存放在各页面的 content script 里，后台无需动作
+
     case MESSAGES.AI_TRANSLATE: {
       // AI 引擎（BYO Key，OpenAI 兼容接口）。用户在设置里填 Key 即视为同意
       // 将该段文本发送给所选服务商——这是产品内唯一会上传文本的路径。
@@ -250,7 +253,7 @@ async function handle(message, sender) {
             model: cfg.model,
             temperature: 0.2,
             messages: [
-              { role: 'system', content: `You are a professional translation engine. Translate the user's text from ${message.sourceName ?? message.source} to ${message.targetName ?? message.target}. Output ONLY the translated text with no explanations, no quotes, preserving line breaks and formatting. If the text is already in the target language, output it unchanged.` },
+              { role: 'system', content: `You are a professional translation engine. Translate the user's text from ${message.sourceName ?? message.source} to ${message.targetName ?? message.target}. Output ONLY the translated text with no explanations, no quotes, preserving line breaks and formatting. If the text is already in the target language, output it unchanged.${message.context?.prevSource ? ` For reference, the immediately preceding segment was: "${message.context.prevSource}" translated as "${message.context.prevTarget}". Keep terminology, names and pronouns consistent with it.` : ''}` },
               { role: 'user', content: message.text }
             ]
           }),

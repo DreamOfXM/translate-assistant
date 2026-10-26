@@ -180,6 +180,14 @@ async function aiConfig() {
   return aiConfigCache;
 }
 
+/** AI 上下文窗口：记住上一段的原/译文，让代词与术语跨段一致 */
+let aiCtx = null;
+
+/** 用户发起新一轮翻译时重置上下文（popup 与卡片入口都会经过这里） */
+function resetAiContext() {
+  aiCtx = null;
+}
+
 /** AI 引擎翻译一段：配置了且启用才走；失败回落（返回 null） */
 async function tryAiTranslation(text, source, target) {
   const cfg = await aiConfig();
@@ -191,9 +199,11 @@ async function tryAiTranslation(text, source, target) {
       source,
       target,
       sourceName: languageName(source, uiLang()),
-      targetName: languageName(target, uiLang())
+      targetName: languageName(target, uiLang()),
+      context: aiCtx
     });
     if (!resp || resp.error || !resp.text) return null;
+    aiCtx = { prevSource: text, prevTarget: resp.text };
     return { text: resp.text, engine: 'ai' };
   } catch {
     return null;
@@ -415,6 +425,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
     status(message, t('translating_pack'));
     // 同上：点击即同意下载 Chrome 内建引擎的语言包
     markUserGesture();
+    resetAiContext();   // 用户发起新一轮：AI 上下文窗口清零
     try {
       const outcome = await translate({
         text: draftArea.value,

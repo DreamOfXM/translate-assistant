@@ -72,13 +72,46 @@ sourceArea.addEventListener('keydown', event => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') run();
 });
 
+/** AI 上下文窗口：上一段原/译文，跨段保持术语与代词一致 */
+let aiCtx = null;
+
 /**
- * 单段翻译：先试 Chrome 内建引擎（Google 端上模型），不行再交给扩展侧的本地语言包引擎。
+ * AI 引擎（BYO Key）优先：配置了 Key 才走；失败回落下一条链。
+ * 这是产品内唯一会把文本发往外部的路径——启用本身即用户同意。
+ */
+async function tryAi(segment, source, target) {
+  try {
+    const { aiConfig: cfg } = await chrome.storage.local.get('aiConfig');
+    if (!cfg?.enabled || !cfg.apiKey || !cfg.baseUrl || !cfg.model) return null;
+    const resp = await chrome.runtime.sendMessage({
+      type: MESSAGES.AI_TRANSLATE,
+      text: segment,
+      source,
+      target,
+      sourceName: languageName(source, uiLang()),
+      targetName: languageName(target, uiLang()),
+      context: aiCtx
+    });
+    if (!resp || resp.error || !resp.text) return null;
+    aiCtx = { prevSource: segment, prevTarget: resp.text };
+    return { text: resp.text, engine: 'ai' };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 单段翻译：AI（若配置）→ Chrome 内建引擎（Google 端上模型）→ 本地语言包引擎。
  *
  * popup 是扩展页面，自己就是「有用户手势」的文档，所以模型下载可以在这里发起——
  * 离屏文档没有手势，Chrome 会以 NotAllowedError 拒绝下载（见 lib/chrome-translator.js）。
  */
 async function translateSegment(segment, source, target) {
+  const ai = await tryAi(segment, source, target);
+  if (ai !== null) {
+    lastEngine = 'ai';
+    return ai.text;
+  }
   const chromeText = await chromeTranslateFirst(segment, source, target, {
     onModel: ({ phase, percent }) => {
       if (phase !== 'downloading') return;   // 就绪/失败后，进度条交回给本次翻译自己
@@ -118,6 +151,7 @@ async function run() {
   // 用户点了「翻译」= 同意下载 Chrome 内建引擎的语言包（下载必须有用户手势）
   markUserGesture();
   lastEngine = null;
+  aiCtx = null;   // 新一轮翻译：上下文窗口清零
 
   runButton.disabled = true;
   runButton.classList.add('loading');
