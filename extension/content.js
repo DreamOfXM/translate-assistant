@@ -44,13 +44,19 @@ let boundInput = null;       // 面板绑定的输入框
 // UI 文案按界面语言生成；focusin/mouseup/autoStart 都会先等它就绪
 const i18nReady = initI18n();
 
-// 译文样式：读偏好 → 应用；Alt/C 与 popup 改动实时生效
+// 译文样式：读偏好 → 应用；Alt+C 与 popup 改动实时生效。
+// ★ hoverReader 在模块后段才创建（const TDZ）：这里绝不能在早期直接解引用——
+//   之前的写法在 reader 未创建时静默跳过、TDZ 报错被 catch 吞掉，
+//   造成「storage 写了 marker 但页面不变」。
 const STYLE_KEY = 'translationStyle';
+const STYLE_VALUES = ['block', 'dash', 'marker', 'blur', 'pure'];
 async function applyStyleFromStorage() {
   try {
     const { [STYLE_KEY]: style } = await chrome.storage.local.get(STYLE_KEY);
-    hoverReader?.setTranslationStyle(['block', 'dash', 'marker', 'blur', 'pure'].includes(style) ? style : 'block');
-  } catch { /* 默认 dash */ }
+    // 延迟到微任务后再取 hoverReader：模块必然已完整执行
+    await Promise.resolve();
+    globalThis.__ltHoverReader?.setTranslationStyle(STYLE_VALUES.includes(style) ? style : 'block');
+  } catch { /* 默认 block */ }
 }
 i18nReady.then(applyStyleFromStorage);
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -732,20 +738,29 @@ const hoverReader = createHoverReader({
   })
 });
 
+// reader 就绪后：挂全局引用（供样式监听等早期回调使用）并应用一次当前样式偏好
+globalThis.__ltHoverReader = hoverReader;
+applyStyleFromStorage();
+
 // 快捷键 Alt+T：与右下角按钮同一语义——已译则收起，未译则开翻
 chrome.runtime.onMessage.addListener(message => {
   if (message?.type !== 'TOGGLE_BILINGUAL') return false;
-  hoverReader?.toggleBilingual();
+  globalThis.__ltHoverReader?.toggleBilingual();
   return false;
 });
 
 // Alt+C 循环译文样式 + 持久化
-chrome.commands?.onCommand?.addListener?.(() => {});
+// Alt+C 循环译文样式（命令在 background 接收，转发到这里）
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== 'CYCLE_STYLE') return false;
-  const next = hoverReader?.cycleTranslationStyle();
-  if (next) chrome.storage.local.set({ translationStyle: next });
-  sendResponse({ style: next });
+  try {
+    const next = globalThis.__ltHoverReader?.cycleTranslationStyle();
+    if (next) chrome.storage.local.set({ translationStyle: next });
+    sendResponse({ style: next ?? null });
+  } catch (error) {
+    console.warn('[翻译助手] 切换样式失败：', error);
+    sendResponse({ style: null, error: String(error?.message ?? error) });
+  }
   return false;
 });
 

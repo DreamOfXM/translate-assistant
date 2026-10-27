@@ -396,7 +396,12 @@ async function applyUiLanguage() {
 chrome.commands?.onCommand.addListener(async command => {
   if (command === 'cycle-style') {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) { try { await chrome.tabs.sendMessage(tab.id, { type: 'CYCLE_STYLE' }); } catch {} }
+    if (!tab?.id) return;
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'CYCLE_STYLE' });
+    } catch (error) {
+      console.warn('[翻译助手] Alt+C 无效（该页面可能尚未注入内容脚本）：', error?.message ?? error);
+    }
     return;
   }
   if (command !== 'toggle-bilingual') return;

@@ -82,10 +82,16 @@ const PARA_STYLES = `
 @media (prefers-reduced-motion: reduce) { .lt-skel { animation: none; } }
 :host(.lt-s-marker) .lt-wrap,
 :host(.lt-s-blur) .lt-wrap,
-:host(.lt-s-pure) .lt-wrap { background: transparent; padding: 2px 0 1px; }
-:host(.lt-s-marker) .lt-para-text { background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
+:host(.lt-s-pure) .lt-wrap,
+:host(.lt-dark.lt-s-marker) .lt-wrap,
+:host(.lt-dark.lt-s-blur) .lt-wrap,
+:host(.lt-dark.lt-s-pure) .lt-wrap { background: transparent; padding: 2px 0 1px; }
+:host(.lt-s-marker) .lt-para-text,
+:host(.lt-dark.lt-s-marker) .lt-para-text { background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
 :host(.lt-s-blur) .lt-para-text,
-:host(.lt-s-pure) .lt-para-text { border-bottom: 0; }
+:host(.lt-s-pure) .lt-para-text,
+:host(.lt-dark.lt-s-blur) .lt-para-text,
+:host(.lt-dark.lt-s-pure) .lt-para-text { border-bottom: 0; }
 /* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
    浮在节点右上角的小胶囊（沉浸式翻译同款位置），不占布局、不把短节点撑高 */
 .lt-para-ops {
@@ -263,11 +269,20 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     if (paraStyle === 'pure') { styledEls.set(el, { filter: el.style.filter, display: el.style.display }); el.style.display = 'none'; }
   };
   const STYLE_CLASSES = ['lt-s-dash', 'lt-s-marker', 'lt-s-blur', 'lt-s-pure'];
+  // ★ results 是 WeakMap（不可迭代）；遍历用 batchNodes（本页全部译文节点），
+  //   el 通过 node.host.parentElement 反查（pure/blur 恢复需要它）
+  // blur/pure 作用的原文元素 = host 的前一个元素兄弟（译文插在原文之后）
+  const sourceElOf = node => node.host.previousElementSibling ?? node.host.parentElement;
+
   const restyleAll = () => {
-    for (const [el, node] of results) {
+    for (const node of batchNodes) {
+      if (!node?.host?.isConnected) continue;
       node.host.classList.remove(...STYLE_CLASSES);
       if (paraStyle !== 'block') node.host.classList.add('lt-s-' + paraStyle);
-      if (node.host.isConnected) applyElStyle(el); else restoreEl(el);
+      const el = sourceElOf(node);
+      if (!el) continue;
+      if (paraStyle === 'blur' || paraStyle === 'pure') applyElStyle(el);
+      else restoreEl(el);   // block/dash/marker：确保清掉历史样式
     }
   };         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
   const queue = [];                // 待翻译段落
