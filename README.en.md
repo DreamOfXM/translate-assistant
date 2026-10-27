@@ -27,9 +27,10 @@
 | ✍️ | **Write-back translation** | Draft a reply in your own language in any comment box; the translation **replaces the draft in place** — **only after you confirm**, never auto-posted |
 | 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched |
 | 🔍 | **Select to translate** | Select any foreign text, click the floating pill, get a result card in place |
-| ⚡ | **Two engines, picked automatically** | Uses the browser's built-in model when it's available (Chrome 138+), otherwise the offline engine bundled with the extension |
+| 🎨 | **Five translation styles** | Color block, dashed underline, marker, blur-to-read and translation-only. Picked in the popup, applied everywhere instantly; `Alt+C` cycles through them |
+| ⚡ | **Three engines, picked automatically** | Chrome's built-in model (138+) first, the extension's bundled offline engine as fallback; you can also plug in your own AI service (off by default) |
 | 📴 | **Offline** | Install a language pack once and translation keeps working without a network |
-| 🔒 | **Privacy first** | Page text, drafts and translations are never uploaded — both engines translate on your device; the network is only used to download models |
+| 🔒 | **Privacy first** | By default every translation happens on your device — page text, drafts and results are never uploaded. The AI engine is off by default; only if you enable it with your own key does the AI-bound portion of text go to the provider you chose |
 
 <p align="center">
   <img src="docs/images/bilingual-en.gif" alt="Bilingual page" width="270">
@@ -52,9 +53,9 @@ The hard part isn't translating, it's writing. Filling a text box looks like one
 > A few rich-text editors reject programmatic writes entirely. Then the translation goes straight to your clipboard and the panel says so in as many words — select all, paste. It never claims a success it didn't get.
 > Input boxes in desktop apps (mail clients, chat apps, notes) are out of a browser extension's reach — on macOS the [menu bar app](macos/README.md) below covers them through the system accessibility API, on the same engine.
 
-## 🌐 Translation engines: both run on your device
+## 🌐 Translation engines: on your device by default
 
-Two engines ship with the extension, and it picks whichever fits — either way **your text is never uploaded**.
+Two local engines ship with the extension, and it picks whichever fits — either way **your text is never uploaded**.
 
 | | Engine | When it's used |
 | --- | --- | --- |
@@ -63,6 +64,13 @@ Two engines ship with the extension, and it picks whichever fits — either way 
 
 > Chrome gates the built-in model download behind a user gesture: it only starts when you click **Translate**, never silently.
 > Until the model is ready, that first translation is served by the local language pack while the download continues in the background; later paragraphs switch over automatically.
+
+<details>
+<summary><b>Optional: bring your own AI (off by default)</b></summary>
+
+The **AI engine** section in the pack manager accepts any OpenAI-compatible service (DeepSeek / Qwen / GLM / OpenAI) — endpoint plus your own key. Once enabled, translations prefer the AI route for a higher quality ceiling; the trade-off is that **the AI-bound portion of text goes to the provider you chose**, under that provider's billing and quota. The UI always labels which engine produced a given translation. Leave it off and everything stays local, exactly as before.
+
+</details>
 
 ## 📥 Language packs: install once, offline forever
 
@@ -76,6 +84,25 @@ Models come from Mozilla's public [Firefox Translations](https://github.com/mozi
 - **Offline runtime**: once installed, translation is fully local — airplane mode included
 - **Integrity checked**: model files are SHA-256 verified; corrupted files are discarded automatically
 - **Relay for non-English pairs**: Mozilla only publishes X↔English models, so pairs like Chinese↔Japanese relay through English (the UI tells you when two packs are needed)
+
+## 🎨 Translation styles & shortcuts
+
+The same bilingual page reads differently depending on what you're there for: five styles, switchable in the popup with instant global effect, or cycled with `Alt+C`.
+
+| Style | Best for |
+| --- | --- |
+| Color block (default) | Translation stands out at a glance; the general case |
+| Dashed underline | The quietest — long articles stay uncluttered |
+| Marker | Highlighter feel for passages you want to spot |
+| Blur to read | Original blurred out — force yourself to read the foreign text first |
+| Translation only | Just the information, no side-by-side |
+
+| Shortcut (default) | Action |
+| --- | --- |
+| `Alt+T` (macOS ⇧⌘Y) | Toggle the bilingual page |
+| `Alt+C` (macOS ⇧⌘U) | Cycle translation styles |
+
+> Shortcuts can be changed at `chrome://extensions/shortcuts`. The popup's corner shows your actual current binding; if it says "No shortcut", click it to jump straight to that settings page.
 
 ## 📦 Install
 
@@ -106,6 +133,7 @@ The build lands in `dist/translate-assistant` (load it as above) and also produc
 1. **Install a pack**: click the extension icon → **Manage packs** → download the direction you need (e.g. en→zh)
 2. **Read foreign pages**: just open them — translations appear automatically; the floating button collapses everything
 3. **Reply in foreign languages**: hit **Translate reply** in a comment box or in a webmail compose box, write in your language, generate, confirm, fill in
+4. **Read it your way**: pick a style in the popup's **Translation styles** or cycle with `Alt+C`; hit **Save word** on a selection card to build a vocabulary list that exports as Anki CSV
 
 The UI speaks **中文 / English** — it follows your browser language and can be switched on the welcome page or in the pack manager.
 
