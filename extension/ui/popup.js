@@ -279,7 +279,10 @@ const onboardButton = $('onboard-go');
 /** 语言包状态。只读 storage（Service Worker 不会为此拉起引擎），顺带决定引导卡显不显示 */
 async function refreshPacks() {
   try {
-    const response = await chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS });
+    const response = await // 构建指纹：眼见为实地确认跑的是哪个构建（样式修复 = s5）
+document.getElementById('build-tag').textContent = 'build s5 · ' + chrome.runtime.getManifest().version;
+
+chrome.runtime.sendMessage({ type: MESSAGES.GET_DIRECTION_STATUS });
     const count = response?.installed?.length ?? 0;
     packsLine.textContent = count ? t('packs_count', { n: count }) : t('packs_none');
     // 一个语言包都没装时，把「去安装」引导卡顶在最上面
