@@ -236,6 +236,9 @@ h1 { margin: 0; font-size: 16px; font-weight: 500; letter-spacing: .2px; }
 .styles-row { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; margin-top: 14px; }
 .styles-hd { font-size: 13px; font-weight: 700; display: flex; align-items: center; }
 .styles-hd .kbd { margin-left: auto; font-size: 11px; color: var(--text-2); font-weight: 400; }
+/* 未绑定快捷键时，提示本身是入口：可点击、虚线边框示意「待设置」 */
+.styles-hd .kbd.kbd-unset { border: 1px dashed var(--line); border-radius: 6px; padding: 1px 7px; cursor: pointer; color: var(--text-2); }
+.styles-hd .kbd.kbd-unset:hover { color: var(--brand); border-color: var(--brand); }
 .chips { display: flex; gap: 6px; margin-top: 9px; }
 .chip { flex: 1; text-align: center; font-size: 12px; padding: 7px 0; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); cursor: pointer; }
 .chip.on { border-color: var(--brand); background: var(--brand-tint); color: var(--brand-strong); font-weight: 700; }

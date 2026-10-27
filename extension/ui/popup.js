@@ -5,6 +5,7 @@ import { translateInSegments } from '../lib/text.js';
 import { HOVER_STORAGE_KEY, PAGE_STORAGE_KEY, AUTO_STORAGE_KEY } from '../lib/reader.js';
 import { MESSAGES, EVENTS } from '../lib/protocol.js';
 import { markUserGesture, chromeTranslateFirst } from '../lib/chrome-translator.js';
+import { formatShortcut } from '../lib/shortcut-label.js';
 
 const $ = id => document.getElementById(id);
 
@@ -234,6 +235,29 @@ async function initStyleChips() {
   } catch { /* 忽略 */ }
 }
 initStyleChips();
+
+// 「译文样式」卡右上角的快捷键提示：读 chrome.commands 里用户配置的实际绑定。
+// suggested_key 只在首装时定格，之后 manifest 改了不会同步，用户还可能自己改过
+// 或清空——所以这里绝不能写死。没绑定时文案本身就是入口，直达 Chrome 的快捷键设置页。
+async function initStyleKbd() {
+  const el = document.getElementById('style-kbd');
+  try {
+    const commands = await chrome.commands.getAll();
+    const shortcut = commands.find(c => c.name === 'cycle-style')?.shortcut;
+    if (!shortcut) {
+      el.textContent = t('style_cycle_unset');
+      el.classList.add('kbd-unset');
+      el.title = t('style_cycle_unset_title');
+      el.onclick = () => chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    } else {
+      el.textContent = t('style_cycle_shortcut', { k: formatShortcut(shortcut) });
+    }
+  } catch {
+    return;   // commands API 异常时保持隐藏，比展示错误键位好
+  }
+  el.hidden = false;
+}
+initStyleKbd();
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes?.translationStyle) {
     for (const chip of document.querySelectorAll('#style-chips .chip')) {
