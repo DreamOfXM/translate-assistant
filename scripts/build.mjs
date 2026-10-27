@@ -5,6 +5,7 @@
 
 import { cpSync, rmSync, mkdirSync, existsSync, statSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -99,6 +100,18 @@ for (const name of readdirSync(dist)) {
 // 压缩包里必须直接是扩展根目录（manifest.json 在顶层）。
 // 如果套一层 translate-assistant/ 目录，商店上传和「加载已解压」都会失败。
 // 优先用 zip；macOS 上没有 zip 时退回 ditto
+// 用户日常 Chrome 实际加载的是另一个目录（chrome-local-translator）。
+// 只更新仓库 dist 而不同步过去，用户重载后跑的仍是旧版——2026-10 的事故：
+// 仓库已到 v1.2.2、用户目录停在 v1.2.1，「怎么改都没效果」查了一整轮才定位。
+// 构建即同步，杜绝两个目录分叉。
+const USER_CHROME_DIR = join(homedir(), 'Desktop/_项目代码/chrome-local-translator/dist/translate-assistant');
+try {
+  cpSync(target, USER_CHROME_DIR, { recursive: true });
+  console.log(`✅ 已同步到用户 Chrome 加载的目录：${USER_CHROME_DIR}`);
+} catch (error) {
+  console.log(`⚠️  同步用户目录失败（${error.code ?? error.message}）——记得手工 rsync，否则用户跑的还是旧版！`);
+}
+
 const zipCommands = [
   ['zip', ['-r', '-q', zipPath, '.']],
   ['ditto', ['-c', '-k', '--sequesterRsrc', '.', zipPath]]
