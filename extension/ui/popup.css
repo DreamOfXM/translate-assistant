@@ -232,6 +232,14 @@ h1 { margin: 0; font-size: 16px; font-weight: 500; letter-spacing: .2px; }
 .switch input:checked + i { background: var(--brand); }
 .switch input:checked + i::after { left: 16px; }
 
+/* ── 译文样式快切 ─────────────────────────── */
+.styles-row { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 11px 12px; margin-top: 14px; }
+.styles-hd { font-size: 13px; font-weight: 700; display: flex; align-items: center; }
+.styles-hd .kbd { margin-left: auto; font-size: 11px; color: var(--text-2); font-weight: 400; }
+.chips { display: flex; gap: 6px; margin-top: 9px; }
+.chip { flex: 1; text-align: center; font-size: 12px; padding: 7px 0; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); cursor: pointer; }
+.chip.on { border-color: var(--brand); background: var(--brand-tint); color: var(--brand-strong); font-weight: 700; }
+
 /* ── 本站规则 ─────────────────────────────── */
 .site-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 12px; color: var(--text-2); }
 .site-select {

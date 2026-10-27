@@ -394,6 +394,11 @@ async function applyUiLanguage() {
 // 首次安装时打开欢迎页（更新不弹，避免打扰老用户）
 // 快捷键 Alt+T：切换当前页的整页双语（与右下角按钮同一语义）
 chrome.commands?.onCommand.addListener(async command => {
+  if (command === 'cycle-style') {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) { try { await chrome.tabs.sendMessage(tab.id, { type: 'CYCLE_STYLE' }); } catch {} }
+    return;
+  }
   if (command !== 'toggle-bilingual') return;
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;

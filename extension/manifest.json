@@ -51,6 +51,12 @@
         "default": "Alt+T"
       },
       "description": "切换整页双语对照 / Toggle bilingual page"
+    },
+    "cycle-style": {
+      "suggested_key": {
+        "default": "Alt+C"
+      },
+      "description": "循环切换译文样式 / Cycle translation style"
     }
   },
   "optional_host_permissions": [

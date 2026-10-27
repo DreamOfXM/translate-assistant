@@ -218,6 +218,30 @@ function bindToggle(id, key, defaultValue) {
   return toggle;
 }
 
+// ── 译文样式快切：持久化 + 实时生效 ──
+const STYLE_KEY = 'translationStyle';
+async function initStyleChips() {
+  try {
+    const { [STYLE_KEY]: style } = await chrome.storage.local.get(STYLE_KEY);
+    const current = ['marker', 'blur', 'pure'].includes(style) ? style : 'dash';
+    for (const chip of document.querySelectorAll('#style-chips .chip')) {
+      chip.classList.toggle('on', chip.dataset.style === current);
+      chip.onclick = async () => {
+        await chrome.storage.local.set({ [STYLE_KEY]: chip.dataset.style });
+        for (const c2 of document.querySelectorAll('#style-chips .chip')) c2.classList.toggle('on', c2 === chip);
+      };
+    }
+  } catch { /* 忽略 */ }
+}
+initStyleChips();
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes?.translationStyle) {
+    for (const chip of document.querySelectorAll('#style-chips .chip')) {
+      chip.classList.toggle('on', chip.dataset.style === changes.translationStyle.newValue);
+    }
+  }
+});
+
 // ── 本站规则：向活动标签页的 content script 查询 host 与当前规则 ──
 async function initSiteRule() {
   try {

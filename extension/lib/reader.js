@@ -51,17 +51,13 @@ const PARA_STYLES = `
    而它是作者样式，优先级高于 UA 的 [hidden]{display:none}——
    所以凡是靠 hidden 属性控制显隐的面板，都要带上这一行。 */
 :host([hidden]) { display: none !important; }
+/* 译文样式系统：默认虚线下划线（最克制）；host 挂 lt-s-marker/lt-s-blur/lt-s-pure 切换 */
 .lt-wrap {
   position: relative;
-  /* 短译文（标题、导航项）贴内容宽度，不撑满整行；长段落自然到 100% */
   width: fit-content;
   max-width: 100%;
-  margin: 8px 0 4px;
-  padding: 10px 14px;
-  border-radius: 20px;
-  /* 整块淡蓝填充就是「这是译文」的唯一标记，不再叠左竖线。
-     必须是半透明：这段要插进任意宿主网页，写死 #E8F0FE 在有色背景上会脏。 */
-  background: rgba(26, 115, 232, .10);
+  margin: 6px 0 3px;
+  padding: 2px 0 1px;
   color: #202124;
   font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   animation: lt-para-in 200ms ease-out;
@@ -70,8 +66,11 @@ const PARA_STYLES = `
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
 }
-.lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
-.lt-para-text.lt-para-error { color: #D93025; }
+.lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; border-bottom: 1.5px dashed #94a3b8; padding-bottom: 1px; color: #334155; }
+.lt-para-text.lt-para-error { color: #D93025; border-bottom: 0; }
+:host(.lt-s-marker) .lt-para-text { border-bottom: 0; background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
+:host(.lt-s-blur) .lt-para-text,
+:host(.lt-s-pure) .lt-para-text { border-bottom: 0; }
 /* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
    浮在节点右上角的小胶囊（沉浸式翻译同款位置），不占布局、不把短节点撑高 */
 .lt-para-ops {
@@ -233,7 +232,28 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   let pageOn = false;
   let bubbleNotice = null;         // 自动翻译未运行时的原因提示 { text, action }，action: 'install'|null
   let bubbleDownload = null;       // 引擎模型下载中的提示：优先于「翻译中 n/m」
-  let bubbleEngine = null;         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
+  let bubbleEngine = null;
+  let paraStyle = 'dash';          // 译文样式：dash | marker | blur | pure
+  const styledEls = new Map();     // 被 blur/pure 的段落元素 → 原 inline 样式快照
+  const restoreEl = el => {
+    const prev = styledEls.get(el);
+    if (prev === undefined) return;
+    el.style.filter = prev.filter;
+    el.style.display = prev.display;
+    styledEls.delete(el);
+  };
+  const applyElStyle = el => {
+    restoreEl(el);
+    if (paraStyle === 'blur') { styledEls.set(el, { filter: el.style.filter, display: el.style.display }); el.style.filter = 'blur(4px)'; }
+    if (paraStyle === 'pure') { styledEls.set(el, { filter: el.style.filter, display: el.style.display }); el.style.display = 'none'; }
+  };
+  const restyleAll = () => {
+    for (const [el, node] of results) {
+      node.host.classList.remove('lt-s-marker', 'lt-s-blur', 'lt-s-pure');
+      if (paraStyle !== 'dash') node.host.classList.add('lt-s-' + paraStyle);
+      if (node.host.isConnected) applyElStyle(el); else restoreEl(el);
+    }
+  };         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
   const queue = [];                // 待翻译段落
   const seen = new WeakSet();      // 已发现过的段落（去重）
   let queued = new WeakSet();      // 已入队的段落（去重）；收起译文后重置
@@ -345,6 +365,10 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     const needsFullRow = /flex/.test(selfFlow) || /grid/.test(selfFlow);
 
     if (isDarkBackground(el)) node.host.classList.add('lt-dark');
+    node.host.classList.toggle('lt-s-marker', paraStyle === 'marker');
+    node.host.classList.toggle('lt-s-blur', paraStyle === 'blur');
+    node.host.classList.toggle('lt-s-pure', paraStyle === 'pure');
+    applyElStyle(el);
     if (el.tagName === 'LI' || !normalParent) {
       el.append(node.host);
       if (needsFullRow) {
@@ -366,15 +390,18 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
       // 插一个一模一样的节点纯属噪音，静默撤掉
       if (translated.trim() === text.trim()) {
         node.host.remove();
+        restoreEl(el);
         results.delete(el);
         queued.delete(el);
         return null;
       }
       node.setText(translated);
+      node.host.title = `${text.slice(0, 160)}${text.length > 160 ? '…' : ''}`;   // 悬停译文显示原文
     } catch (error) {
       // 段落本身就是目标语言（如混排页面里的纯中文段）：静默撤掉节点，不弹错误卡片
       if (error?.silent) {
         node.host.remove();
+        restoreEl(el);
         results.delete(el);
         return null;
       }
@@ -653,6 +680,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     queued = new WeakSet();   // 停止后重新开始时要能重新入队
     stopWatching();
     pruneBatchNodes();
+    for (const el of styledEls.keys()) restoreEl(el);
     updateBubble();
   };
 
@@ -831,6 +859,18 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
       bubble?.click();
     },
     setBubbleEngine,
+    /** 译文样式：dash | marker | blur | pure（Alt+C 与 popup 共用） */
+    setTranslationStyle(style) {
+      if (!['dash', 'marker', 'blur', 'pure'].includes(style)) return;
+      paraStyle = style;
+      restyleAll();
+    },
+    cycleTranslationStyle() {
+      const order = ['dash', 'marker', 'blur', 'pure'];
+      const next = order[(order.indexOf(paraStyle) + 1) % order.length];
+      this.setTranslationStyle(next);
+      return next;
+    },
     setBubbleDownload,
     /** 供测试注入事件 */
     _onMouseOver: onMouseOver,

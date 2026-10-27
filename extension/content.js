@@ -44,6 +44,19 @@ let boundInput = null;       // 面板绑定的输入框
 // UI 文案按界面语言生成；focusin/mouseup/autoStart 都会先等它就绪
 const i18nReady = initI18n();
 
+// 译文样式：读偏好 → 应用；Alt/C 与 popup 改动实时生效
+const STYLE_KEY = 'translationStyle';
+async function applyStyleFromStorage() {
+  try {
+    const { [STYLE_KEY]: style } = await chrome.storage.local.get(STYLE_KEY);
+    hoverReader?.setTranslationStyle(['marker', 'blur', 'pure'].includes(style) ? style : 'dash');
+  } catch { /* 默认 dash */ }
+}
+i18nReady.then(applyStyleFromStorage);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes?.[STYLE_KEY]) applyStyleFromStorage();
+});
+
 /* ---------------------------------- 基础设施 --------------------------------- */
 
 function mount() {
@@ -723,6 +736,16 @@ const hoverReader = createHoverReader({
 chrome.runtime.onMessage.addListener(message => {
   if (message?.type !== 'TOGGLE_BILINGUAL') return false;
   hoverReader?.toggleBilingual();
+  return false;
+});
+
+// Alt+C 循环译文样式 + 持久化
+chrome.commands?.onCommand?.addListener?.(() => {});
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== 'CYCLE_STYLE') return false;
+  const next = hoverReader?.cycleTranslationStyle();
+  if (next) chrome.storage.local.set({ translationStyle: next });
+  sendResponse({ style: next });
   return false;
 });
 
