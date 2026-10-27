@@ -48,13 +48,21 @@
   "commands": {
     "toggle-bilingual": {
       "suggested_key": {
-        "default": "Alt+T"
+        "default": "Alt+T",
+        "mac": "Command+Shift+Y",
+        "windows": "Alt+T",
+        "linux": "Alt+T",
+        "chromeos": "Alt+T"
       },
       "description": "切换整页双语对照 / Toggle bilingual page"
     },
     "cycle-style": {
       "suggested_key": {
-        "default": "Alt+C"
+        "default": "Alt+C",
+        "mac": "Command+Shift+U",
+        "windows": "Alt+C",
+        "linux": "Alt+C",
+        "chromeos": "Alt+C"
       },
       "description": "循环切换译文样式 / Cycle translation style"
     }
