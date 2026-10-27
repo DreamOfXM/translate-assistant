@@ -25,8 +25,9 @@
 | | Feature | Details |
 | --- | --- | --- |
 | ✍️ | **Write-back translation** | Draft a reply in your own language in any comment box; the translation **replaces the draft in place** — **only after you confirm**, never auto-posted |
-| 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched |
+| 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched; per-site "never translate" lives in the popup |
 | 🔍 | **Select to translate** | Select any foreign text, click the floating pill, get a result card in place |
+| 👆 | **Hover to translate** | Hover a paragraph, click the pill that appears — just that one paragraph gets translated |
 | 🎨 | **Five translation styles** | Color block, dashed underline, marker, blur-to-read and translation-only. Picked in the popup, applied everywhere instantly; `Alt+C` cycles through them |
 | ⚡ | **Three engines, picked automatically** | Chrome's built-in model (138+) first, the extension's bundled offline engine as fallback; you can also plug in your own AI service (off by default) |
 | 📴 | **Offline** | Install a language pack once and translation keeps working without a network |
@@ -88,6 +89,12 @@ Models come from Mozilla's public [Firefox Translations](https://github.com/mozi
 ## 🎨 Translation styles & shortcuts
 
 The same bilingual page reads differently depending on what you're there for: five styles, switchable in the popup with instant global effect, or cycled with `Alt+C`.
+
+<p align="center">
+  <img src="docs/images/styles-en.gif" alt="Switching translation styles" width="640">
+</p>
+
+*Pick a style in the popup and every translation already on the page re-styles instantly; all five styles in sequence*
 
 | Style | Best for |
 | --- | --- |
