@@ -49,7 +49,7 @@ const STYLE_KEY = 'translationStyle';
 async function applyStyleFromStorage() {
   try {
     const { [STYLE_KEY]: style } = await chrome.storage.local.get(STYLE_KEY);
-    hoverReader?.setTranslationStyle(['marker', 'blur', 'pure'].includes(style) ? style : 'dash');
+    hoverReader?.setTranslationStyle(['block', 'dash', 'marker', 'blur', 'pure'].includes(style) ? style : 'block');
   } catch { /* 默认 dash */ }
 }
 i18nReady.then(applyStyleFromStorage);

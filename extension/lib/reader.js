@@ -51,22 +51,28 @@ const PARA_STYLES = `
    而它是作者样式，优先级高于 UA 的 [hidden]{display:none}——
    所以凡是靠 hidden 属性控制显隐的面板，都要带上这一行。 */
 :host([hidden]) { display: none !important; }
-/* 译文样式系统：默认虚线下划线（最克制）；host 挂 lt-s-marker/lt-s-blur/lt-s-pure 切换 */
+/* 译文样式系统：默认色块（淡蓝底，用户钦定）；host 挂 lt-s-dash/marker/blur/pure 切换 */
 .lt-wrap {
   position: relative;
   width: fit-content;
   max-width: 100%;
   margin: 6px 0 3px;
-  padding: 2px 0 1px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  /* 默认样式：整块淡蓝填充 */
+  background: rgba(26, 115, 232, .10);
   color: #202124;
   font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   animation: lt-para-in 200ms ease-out;
 }
+/* 虚线样式：去掉色块底，改虚线下划线 */
+:host(.lt-s-dash) .lt-wrap { background: transparent; padding: 2px 0 1px; }
+:host(.lt-s-dash) .lt-para-text { border-bottom: 1.5px dashed #94a3b8; padding-bottom: 1px; color: #334155; }
 @keyframes lt-para-in {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
 }
-.lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; border-bottom: 1.5px dashed #94a3b8; padding-bottom: 1px; color: #334155; }
+.lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; }
 .lt-para-text.lt-para-error { color: #D93025; border-bottom: 0; }
 /* 翻译中骨架屏：灰底呼吸条，高度与一行译文接近，译文就位前不跳版 */
 .lt-para-loading { border-bottom: 0 !important; display: flex; gap: 6px; min-height: 1em; }
@@ -74,7 +80,10 @@ const PARA_STYLES = `
 .lt-skel-short { flex: 0 0 18%; }
 @keyframes lt-skel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .lt-skel { animation: none; } }
-:host(.lt-s-marker) .lt-para-text { border-bottom: 0; background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
+:host(.lt-s-marker) .lt-wrap,
+:host(.lt-s-blur) .lt-wrap,
+:host(.lt-s-pure) .lt-wrap { background: transparent; padding: 2px 0 1px; }
+:host(.lt-s-marker) .lt-para-text { background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
 :host(.lt-s-blur) .lt-para-text,
 :host(.lt-s-pure) .lt-para-text { border-bottom: 0; }
 /* 操作按钮默认隐藏，悬停译文节点时浮现——整页几十段常驻「复制/收起」是纯噪音。
@@ -239,7 +248,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
   let bubbleNotice = null;         // 自动翻译未运行时的原因提示 { text, action }，action: 'install'|null
   let bubbleDownload = null;       // 引擎模型下载中的提示：优先于「翻译中 n/m」
   let bubbleEngine = null;
-  let paraStyle = 'dash';          // 译文样式：dash | marker | blur | pure
+  let paraStyle = 'block';          // 译文样式：block（默认）| dash | marker | blur | pure
   const styledEls = new Map();     // 被 blur/pure 的段落元素 → 原 inline 样式快照
   const restoreEl = el => {
     const prev = styledEls.get(el);
@@ -253,10 +262,11 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     if (paraStyle === 'blur') { styledEls.set(el, { filter: el.style.filter, display: el.style.display }); el.style.filter = 'blur(4px)'; }
     if (paraStyle === 'pure') { styledEls.set(el, { filter: el.style.filter, display: el.style.display }); el.style.display = 'none'; }
   };
+  const STYLE_CLASSES = ['lt-s-dash', 'lt-s-marker', 'lt-s-blur', 'lt-s-pure'];
   const restyleAll = () => {
     for (const [el, node] of results) {
-      node.host.classList.remove('lt-s-marker', 'lt-s-blur', 'lt-s-pure');
-      if (paraStyle !== 'dash') node.host.classList.add('lt-s-' + paraStyle);
+      node.host.classList.remove(...STYLE_CLASSES);
+      if (paraStyle !== 'block') node.host.classList.add('lt-s-' + paraStyle);
       if (node.host.isConnected) applyElStyle(el); else restoreEl(el);
     }
   };         // 本次翻译使用的引擎（Chrome / Bergamot），仅用于按钮展示
@@ -376,6 +386,7 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
       const fs2 = parseFloat(view.getComputedStyle(el).fontSize);
       if (Number.isFinite(fs2)) node.host.style.fontSize = `${Math.max(12, Math.min(20, fs2))}px`;
     } catch { /* 取不到保持默认 */ }
+    node.host.classList.toggle('lt-s-dash', paraStyle === 'dash');
     node.host.classList.toggle('lt-s-marker', paraStyle === 'marker');
     node.host.classList.toggle('lt-s-blur', paraStyle === 'blur');
     node.host.classList.toggle('lt-s-pure', paraStyle === 'pure');
@@ -872,12 +883,12 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     setBubbleEngine,
     /** 译文样式：dash | marker | blur | pure（Alt+C 与 popup 共用） */
     setTranslationStyle(style) {
-      if (!['dash', 'marker', 'blur', 'pure'].includes(style)) return;
+      if (!['block', 'dash', 'marker', 'blur', 'pure'].includes(style)) return;
       paraStyle = style;
       restyleAll();
     },
     cycleTranslationStyle() {
-      const order = ['dash', 'marker', 'blur', 'pure'];
+      const order = ['block', 'dash', 'marker', 'blur', 'pure'];
       const next = order[(order.indexOf(paraStyle) + 1) % order.length];
       this.setTranslationStyle(next);
       return next;

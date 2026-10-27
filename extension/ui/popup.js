@@ -223,7 +223,7 @@ const STYLE_KEY = 'translationStyle';
 async function initStyleChips() {
   try {
     const { [STYLE_KEY]: style } = await chrome.storage.local.get(STYLE_KEY);
-    const current = ['marker', 'blur', 'pure'].includes(style) ? style : 'dash';
+    const current = ['block', 'dash', 'marker', 'blur', 'pure'].includes(style) ? style : 'block';
     for (const chip of document.querySelectorAll('#style-chips .chip')) {
       chip.classList.toggle('on', chip.dataset.style === current);
       chip.onclick = async () => {
