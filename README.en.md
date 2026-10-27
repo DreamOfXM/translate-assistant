@@ -2,9 +2,9 @@
 
 # Translate Assistant
 
-**Draft in your own language, the translation replaces your draft in place — no API keys, no uploads, offline once packs are installed**
+**Draft in your own language, the translation replaces your draft in place — fully usable without an API key, no uploads, offline once packs are installed**
 
-*Write-back translation for Chrome: type a reply in your language and the translation lands in the box, plus bilingual full-page view and select-to-translate. A Google Translate / Immersive Translate alternative that needs no API key and sends nothing anywhere.*
+*Write-back translation for Chrome: type a reply in your language and the translation lands in the box, plus bilingual full-page view and select-to-translate. A Google Translate / Immersive Translate alternative that works in full without an API key and sends nothing anywhere by default.*
 
 [简体中文](README.md) | **English README**
 

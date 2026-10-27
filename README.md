@@ -2,9 +2,9 @@
 
 # 翻译助手
 
-**在输入框里用中文打草稿，译文原地整段替回 —— 不用 API Key、不上传文本、装好语言包离线也能用**
+**在输入框里用中文打草稿，译文原地整段替回 —— 不配 API Key 就全能用、不上传文本、装好语言包离线也能用**
 
-*Write-back translation for Chrome: draft in your own language, the translation replaces it in place — plus offline bilingual page reading. No API keys, no uploads, no tracking.*
+*Write-back translation for Chrome: draft in your own language, the translation replaces it in place — plus offline bilingual page reading. Works in full without an API key; nothing uploaded, nothing tracked.*
 
 **简体中文** | [English README](README.en.md)
 
