@@ -4,7 +4,7 @@
     "description": "Name shown in chrome://extensions"
   },
   "extDescription": {
-    "message": "Translate selected text and reply drafts locally in your browser — no API key, works offline once a pack is installed."
+    "message": "Translate selected text and reply drafts locally in your browser — works out of the box, offline once a pack is installed."
   },
   "actionTitle": {
     "message": "Translate Assistant"

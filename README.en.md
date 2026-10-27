@@ -81,7 +81,7 @@ Models come from Mozilla's public [Firefox Translations](https://github.com/mozi
   <img src="docs/images/packs-en.gif" alt="Language pack manager" width="720">
 </p>
 
-- **On-demand download**: a pack (13–60 MB, typically around 30 MB) is fetched the first time you use a direction, with the size shown up front
+- **On-demand download**: a pack (10–50 MB, most around 25 MB) is fetched the first time you use a direction, with the size shown up front
 - **Offline runtime**: once installed, translation is fully local — airplane mode included
 - **Integrity checked**: model files are SHA-256 verified; corrupted files are discarded automatically
 - **Relay for non-English pairs**: Mozilla only publishes X↔English models, so pairs like Chinese↔Japanese relay through English (the UI tells you when two packs are needed)
@@ -109,7 +109,7 @@ The same bilingual page reads differently depending on what you're there for: fi
 | `Alt+T` (macOS ⇧⌘Y) | Toggle the bilingual page |
 | `Alt+C` (macOS ⇧⌘U) | Cycle translation styles |
 
-> Shortcuts can be changed at `chrome://extensions/shortcuts`. The popup's corner shows your actual current binding; if it says "No shortcut", click it to jump straight to that settings page.
+> Shortcuts can be changed at `chrome://extensions/shortcuts`. The popup's corner shows your actual current binding; if it says "No shortcut", click it to jump straight to that settings page. On macOS `Alt+T` / `Alt+C` work as well — the extension listens inside the page directly, independent of Chrome's binding.
 
 ## 📦 Install
 

@@ -88,25 +88,25 @@
     <span>翻译助手 Translate Assistant</span>
   </div>
   <h1>隐私政策 / Privacy Policy</h1>
-  <p class="meta">生效日期 2026-10-26 · 适用版本 1.2.1（Chrome 扩展）· 开发者 DreamOfXM</p>
+  <p class="meta">生效日期 2026-10-27 · 适用版本 1.2.5（Chrome 扩展）· 开发者 DreamOfXM</p>
 </header>
 
 <p class="lede">
-  <strong>一句话：翻译全部在你的设备上完成。</strong>
-  我们不收集、不上传、不存储你的任何文本——选中的文字、网页正文、输入框里的草稿，都只在你的浏览器里处理。
+  <strong>一句话：默认情况下，翻译全部在你的设备上完成。</strong>
+  不开启 AI 引擎时，我们不收集、不上传、不存储你的任何文本——选中的文字、网页正文、输入框里的草稿，都只在你的浏览器里处理。AI 引擎是可选项且默认关闭；开启后的数据流向见第二节。
 </p>
 
 <h2>一、我们处理哪些数据，在哪里处理</h2>
-<p>扩展的唯一用途是翻译。下列数据只在你的设备内存中处理，处理完即释放，不会发送到任何服务器，也不会写入我们的存储（我们没有这样的存储）：</p>
+<p>扩展的唯一用途是翻译。下列数据只在你的设备内存中处理，处理完即释放，默认不会发送到任何服务器，也不会写入我们的存储（我们没有这样的存储）：</p>
 <ul>
   <li>你选中的文本；</li>
   <li>你正在浏览的网页正文段落（用于生成双语对照）；</li>
   <li>你在网页输入框中撰写的草稿（仅在你主动点击翻译并确认后，译文才会被写回输入框）。</li>
 </ul>
-<p>翻译引擎有两套，都在本地运行：浏览器自带的端上翻译模型（Chrome 138+ 且该语言方向可用时优先），以及扩展内置的 <code>bergamot-translator</code> WebAssembly 引擎。两者的推理过程都不联网。</p>
+<p>本地翻译引擎有两套：浏览器自带的端上翻译模型（Chrome 138+ 且该语言方向可用时优先），以及扩展内置的 <code>bergamot-translator</code> WebAssembly 引擎。两者的推理过程都不联网。此外有一个<strong>默认关闭</strong>的可选 AI 引擎（见第二节）。</p>
 
-<h2>二、唯一的网络请求</h2>
-<p>为了让离线翻译可用，扩展需要下载语言包。这是本扩展<strong>唯一</strong>的网络行为：</p>
+<h2>二、网络请求</h2>
+<p>为了让离线翻译可用，扩展需要下载语言包。<strong>不启用 AI 引擎时，这是本扩展唯一的网络行为：</strong>
 <table>
   <tr><th>目标</th><td><code>storage.googleapis.com</code>（Mozilla 公开的翻译模型仓库）</td></tr>
   <tr><th>内容</th><td>模型、词表、字符模型等数据文件，以及一份模型清单</td></tr>
@@ -115,6 +115,14 @@
   <tr><th>完整性</th><td>下载后按 SHA-256 校验，损坏的文件会被丢弃并重下</td></tr>
 </table>
 <p>下载回来的语言包保存在你本机的浏览器存储里，可以随时在设置页删除。</p>
+
+<h3>可选例外：AI 引擎（默认关闭）</h3>
+<p>「语言包管理」页提供一个可选的 AI 引擎：由你填入任意 OpenAI 兼容服务（如 DeepSeek / 通义 / GLM / OpenAI）的地址与 API Key。只有在<strong>你主动启用并保存</strong>之后：</p>
+<ul>
+  <li>待翻译文本会发送到<strong>你配置的那个服务商</strong>（由你的浏览器直接请求，不经过我们——我们没有服务器，也无法看到这些请求）；</li>
+  <li>数据在那里的处理遵循<strong>该服务商</strong>的隐私政策与计费条款；API Key 只保存在你本机的浏览器存储里；</li>
+  <li>界面每次都会标注当前译文出自哪套引擎，你随时可以关闭 AI 引擎回到全本地模式，关闭后不再有任何文本离开设备。</li>
+</ul>
 
 <h2>三、本地存储了什么</h2>
 <p>扩展使用 <code>chrome.storage.local</code> 保存以下配置，它们不会离开你的设备：</p>
@@ -134,6 +142,7 @@
   <tr><td><code>offscreen</code></td><td>Manifest V3 的 Service Worker 不能创建 Web Worker，翻译引擎（WASM）需要在离屏文档中运行</td></tr>
   <tr><td>所有网站的内容脚本<br>（content script）</td><td>翻译发生在你正在看的页面上：读取正文段落用于插入译文，在网页输入框中写回译文。不读取与你当前操作无关的数据，不记录浏览历史</td></tr>
   <tr><td><code>storage.googleapis.com</code><br>（主机权限）</td><td>仅用于下载语言包</td></tr>
+  <tr><td><code>https://*/*</code><br>（可选主机权限）</td><td>仅在启用 AI 引擎并保存配置时，向你配置的服务商地址发起翻译请求；平时不申请、不使用</td></tr>
 </table>
 
 <h2>五、我们明确不做的事</h2>
@@ -172,24 +181,24 @@
 
 <div lang="en">
 <h1 style="font-size:26px;margin-top:44px">Privacy Policy</h1>
-<p class="meta">Effective 2026-10-26 · Version 1.2.1 (Chrome extension) · Developer DreamOfXM</p>
+<p class="meta">Effective 2026-10-27 · Version 1.2.5 (Chrome extension) · Developer DreamOfXM</p>
 
 <p class="lede">
-  <strong>In one sentence: translation happens entirely on your device.</strong>
-  We do not collect, upload or store any of your text — selected text, page content and input drafts never leave your browser.
+  <strong>In one sentence: by default, translation happens entirely on your device.</strong>
+  With the AI engine off (the default), we collect, upload and store none of your text — selected text, page content and input drafts never leave your browser. The AI engine is optional and off by default; when you enable it, see section 2 for where that data goes.
 </p>
 
 <h2>1. What we process, and where</h2>
-<p>The extension has a single purpose: translation. The following data is processed only in your device's memory and is released afterwards. It is never sent to any server, and no copy is written to any storage of ours (we operate no such storage):</p>
+<p>The extension has a single purpose: translation. The following data is processed only in your device's memory and is released afterwards. By default it is never sent to any server, and no copy is written to any storage of ours (we operate no such storage):</p>
 <ul>
   <li>Text you select;</li>
   <li>Paragraphs of the page you are currently reading (to build the bilingual view);</li>
   <li>Drafts you type into web page input fields — the translation is written back only after you explicitly trigger it and confirm.</li>
 </ul>
-<p>Both translation engines run locally: Chrome's on-device model (preferred on Chrome 138+ when the language pair is available) and the bundled <code>bergamot-translator</code> WebAssembly engine. Neither performs inference over the network.</p>
+<p>Both local translation engines run on-device: Chrome's built-in model (preferred on Chrome 138+ when the language pair is available) and the bundled <code>bergamot-translator</code> WebAssembly engine. Neither performs inference over the network. An optional AI engine exists too — <strong>off by default</strong> (see section 2).</p>
 
-<h2>2. The only network request</h2>
-<p>To enable offline translation the extension downloads language packs. This is the extension's <strong>only</strong> network activity:</p>
+<h2>2. Network requests</h2>
+<p>To enable offline translation the extension downloads language packs. <strong>With the AI engine disabled, this is the extension's only network activity:</strong>
 <table>
   <tr><th>Endpoint</th><td><code>storage.googleapis.com</code> (Mozilla's public translation model repository)</td></tr>
   <tr><th>Payload</th><td>Model, vocabulary and character model data files, plus a model index</td></tr>
@@ -198,6 +207,14 @@
   <tr><th>Integrity</th><td>Downloads are verified with SHA-256; damaged files are discarded and re-fetched</td></tr>
 </table>
 <p>Packs are stored in your own browser storage and can be deleted at any time from the options page.</p>
+
+<h3>Optional exception: the AI engine (off by default)</h3>
+<p>The Pack manager page offers an optional AI engine: you supply the endpoint and API key of any OpenAI-compatible service (DeepSeek / Qwen / GLM / OpenAI). Only after <strong>you explicitly enable and save</strong> it:</p>
+<ul>
+  <li>Text to translate is sent to <strong>the provider you configured</strong> — requested directly by your browser, never through us (we run no servers and cannot see these requests);</li>
+  <li>How that provider handles the data follows <strong>that provider's</strong> privacy policy and billing terms; your API key is stored only in your local browser storage;</li>
+  <li>The UI always labels which engine produced a given translation. You can turn the AI engine off at any time to return to fully local mode — once off, no text leaves your device again.</li>
+</ul>
 
 <h2>3. What is stored locally</h2>
 <p>The extension stores configuration in <code>chrome.storage.local</code>, which never leaves your device: interface language, feature toggles, and records of installed language packs (direction, size, checksum, install time). Uninstalling the extension removes this data and the downloaded packs.</p>
@@ -210,6 +227,7 @@
   <tr><td><code>offscreen</code></td><td>Manifest V3 service workers cannot create Web Workers; the WASM engine must run in an offscreen document</td></tr>
   <tr><td>Content script on all sites</td><td>Translation happens on the page you are viewing: reading paragraphs to insert translations, and writing a translation back into page input fields. Nothing unrelated is read and no browsing history is recorded</td></tr>
   <tr><td><code>storage.googleapis.com</code><br>(host permission)</td><td>Language pack download only</td></tr>
+  <tr><td><code>https://*/*</code><br>(optional host permission)</td><td>Requested only when you enable the AI engine and save a configuration; used solely for translation calls to the provider you configured</td></tr>
 </table>
 
 <h2>5. What we do not do</h2>

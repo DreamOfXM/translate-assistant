@@ -200,6 +200,15 @@ copyButton.onclick = async () => {
 
 $('manage').onclick = () => chrome.runtime.openOptionsPage();
 
+// 徽章如实反映引擎状态：默认「本地 · 离线」；用户启用了 AI 引擎时改标「本地优先 · AI」，
+// 否则启用 AI 的用户会看到一个与实际数据流向不符的「离线」徽章
+chrome.storage.local.get('aiConfig').then(({ aiConfig }) => {
+  if (aiConfig?.enabled && aiConfig?.apiKey && aiConfig?.baseUrl && aiConfig?.model) {
+    const badge = document.querySelector('.badge');
+    if (badge) badge.textContent = t('badge_ai');
+  }
+}).catch(() => {});
+
 // 读模式的三个开关，content script 通过 storage.onChanged 实时感知。
 // 整页双语对照和悬浮按钮默认开（这是主要用法），悬停按钮默认关。
 function bindToggle(id, key, defaultValue) {
