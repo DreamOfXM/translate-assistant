@@ -138,9 +138,10 @@ export function primeChromeTranslator(source, target, { onProgress } = {}) {
 
   // 看门狗：组件下载服务不可用（如 Chrome for Testing 禁用了 component updater，
   // 或网络黑洞）时 create() 会永远挂着——零进度事件、不 resolve 也不 reject。
-  // 15 秒没等到第一个进度事件就判死：摘缓存、置失败原因，让调用方回落本地引擎，
+  // 8 秒没等到第一个进度事件就判死（正常下载的首个进度事件通常 2~3 秒内到达，
+  // 不会误伤慢网）：摘缓存、置失败原因，让调用方回落本地引擎，
   // 而不是让用户对着一动不动的「下载中」干等。
-  const WATCHDOG_MS = 15000;
+  const WATCHDOG_MS = 8000;
   const key2 = key;
   let sawProgress = false;
   if (options.monitor) {

@@ -182,6 +182,9 @@ async function tryChromeTranslation(text, source, target) {
   if (last) {
     console.info('[翻译助手] Chrome 内建引擎本次未启用，改用本地语言包：', last?.message ?? last);
   }
+  // 内建引擎本次走不通（含下载挂起被看门狗掐断）：清掉「正在下载」提示，
+  // 否则本地引擎已经把译文翻完了，按钮上还挂着误导性的下载文案
+  hoverReader?.setBubbleDownload(null);
   return null;
 }
 
@@ -697,6 +700,28 @@ document.addEventListener('mouseup', async event => {
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') closeCard();
 });
+
+// 页面级快捷键兜底。chrome.commands 的 suggested_key 只在扩展首次安装时写入用户配置，
+// 之后 manifest 里改成什么都不会同步过去——老安装的绑定可能停留在旧值甚至丢失。
+// 这里在页面里直接监听 Alt+T / Alt+C，完全不依赖 chrome.commands 的绑定状态。
+// 必须用 event.code 而不是 event.key：macOS 按 Alt+T 时 key 已被改写成 '†'，code 仍是 'KeyT'。
+// 输入框里不拦截——用户在文本框按 Alt+字母 是想输入特殊字符，不是想切换样式。
+document.addEventListener('keydown', event => {
+  if (!event.altKey || event.metaKey || event.ctrlKey) return;
+  const target = event.target;
+  if (target instanceof HTMLElement &&
+      (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+  if (event.code === 'KeyT') {
+    event.preventDefault();
+    event.stopPropagation();
+    globalThis.__ltHoverReader?.toggleBilingual();
+  } else if (event.code === 'KeyC') {
+    event.preventDefault();
+    event.stopPropagation();
+    const next = globalThis.__ltHoverReader?.cycleTranslationStyle();
+    if (next) chrome.storage.local.set({ translationStyle: next });
+  }
+}, true);
 
 /* --------------------------------- 悬停阅读 ---------------------------------- */
 
