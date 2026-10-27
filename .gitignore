@@ -11,3 +11,14 @@ macos/.build/
 docs/chrome-web-store.md
 tests/e2e/README.md
 docs/design-history/
+.aoci/
+
+# 各家 AI 工具在本机的配置与认知层（.aoci/ 之外还有这些根目录痕迹）
+.codex/
+.cursor/
+.zcode/
+.mcp.json
+opencode.json
+aoci*.txt
+AGENTS.md
+.gitattributes
