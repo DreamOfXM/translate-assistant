@@ -229,6 +229,16 @@ async function refresh() {
 searchInput.addEventListener('input', () => {
   keyword = searchInput.value.trim();
   renderPacks();
+  // 空态引导：搜不到时给出「清空关键词」的一键动作，而不是死胡同
+  const empty = packList.querySelector('.empty');
+  if (empty && keyword) {
+    const clear = document.createElement('button');
+    clear.className = 'link';
+    clear.style.cssText = 'display:block;margin:10px auto 0';
+    clear.textContent = '← ' + t('options_clear_search');
+    clear.onclick = () => { searchInput.value = ''; keyword = ''; renderPacks(); };
+    empty.append(clear);
+  }
 });
 
 $('refresh').onclick = refresh;

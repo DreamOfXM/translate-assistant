@@ -68,6 +68,12 @@ const PARA_STYLES = `
 }
 .lt-para-text { margin: 0; white-space: pre-wrap; word-break: break-word; border-bottom: 1.5px dashed #94a3b8; padding-bottom: 1px; color: #334155; }
 .lt-para-text.lt-para-error { color: #D93025; border-bottom: 0; }
+/* 翻译中骨架屏：灰底呼吸条，高度与一行译文接近，译文就位前不跳版 */
+.lt-para-loading { border-bottom: 0 !important; display: flex; gap: 6px; min-height: 1em; }
+.lt-skel { flex: 1 1 40%; height: 0.85em; border-radius: 4px; background: rgba(100, 116, 139, .25); animation: lt-skel-pulse 1.2s ease-in-out infinite; }
+.lt-skel-short { flex: 0 0 18%; }
+@keyframes lt-skel-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lt-skel { animation: none; } }
 :host(.lt-s-marker) .lt-para-text { border-bottom: 0; background: rgba(255, 235, 59, .4); border-radius: 3px; padding: 0 3px; }
 :host(.lt-s-blur) .lt-para-text,
 :host(.lt-s-pure) .lt-para-text { border-bottom: 0; }
@@ -365,6 +371,11 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     const needsFullRow = /flex/.test(selfFlow) || /grid/.test(selfFlow);
 
     if (isDarkBackground(el)) node.host.classList.add('lt-dark');
+    // 字号自适应：译文跟随宿主段落的计算字号（标题下的译文不会比正文大），clamp 12–20px
+    try {
+      const fs2 = parseFloat(view.getComputedStyle(el).fontSize);
+      if (Number.isFinite(fs2)) node.host.style.fontSize = `${Math.max(12, Math.min(20, fs2))}px`;
+    } catch { /* 取不到保持默认 */ }
     node.host.classList.toggle('lt-s-marker', paraStyle === 'marker');
     node.host.classList.toggle('lt-s-blur', paraStyle === 'blur');
     node.host.classList.toggle('lt-s-pure', paraStyle === 'pure');
