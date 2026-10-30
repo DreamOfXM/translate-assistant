@@ -50,7 +50,13 @@ if (/^\d+\.\d+\.\d+$/.test(bump)) {
   console.error('✖ 版本参数只能是 patch / minor / major 或 X.Y.Z');
   process.exit(1);
 }
-if (next <= current) {
+// 逐段数值比较：直接用 <= 会把 '1.2.10' 判成不大于 '1.2.9'（字典序 '1'<'9'）
+const versionOrder = (a, b) => {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  return (pa[0] - pb[0]) || (pa[1] - pb[1]) || ((pa[2] ?? 0) - (pb[2] ?? 0));
+};
+if (versionOrder(next, current) <= 0) {
   console.error(`✖ 新版本 ${next} 必须大于当前版本 ${current}`);
   process.exit(1);
 }
