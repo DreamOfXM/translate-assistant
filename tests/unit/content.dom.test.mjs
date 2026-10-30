@@ -40,6 +40,7 @@ globalThis.HTMLInputElement = window.HTMLInputElement;
 const translateCalls = [];
 let wordbookStore = [];   // 生词本 mock 存储
 const storageListeners = [];
+const storageWrites = []; // 捕获全部 storage.local.set，供「气泡开关持久化」用例断言
 let hoverSetting = false;
 let installedPacks = [];   // 自动翻译前会先查语言包，为空则不自动翻（默认不自动，避免污染其它用例）
 
@@ -68,6 +69,7 @@ globalThis.chrome = {
         return base;
       },
       set: async obj => {
+        storageWrites.push({ ...obj });
         if (obj && typeof obj === 'object' && 'wordbook' in obj) {
           wordbookStore = obj.wordbook;
         }
@@ -661,6 +663,30 @@ test('整页双语对照：先悬停翻过一段，第一次点按钮是整页�
   assert.ok(para2.nextElementSibling?.classList.contains('lt-para-host'), '整页翻译应补上另一段');
   assert.equal(translateCalls.length, 2, '已有译文的那段不应再请求一次');
   assert.match(shadow().querySelector('.lt-bubble').textContent, /已译 2 段/);
+});
+
+test('整页双语对照：气泡的开关是用户意愿，跨页面持久化到 autoBilingual', async () => {
+  reset();
+  installedPacks = ['en-zh'];
+  storageWrites.length = 0;
+  storageListeners.forEach(listener => listener({ hoverTranslate: { newValue: true } }, 'local'));
+
+  const para = window.document.getElementById('para');
+  para.textContent = 'Local translation runs entirely on your device.';
+  const bubble = shadow().querySelector('.lt-bubble');
+
+  bubble.click();   // 未译 → 开翻
+  await tick();
+  assert.equal(storageWrites.at(-1)?.autoBilingual, true, '点开 = 恢复自动翻译');
+
+  bubble.click();   // 已译 → 收起
+  assert.equal(para.nextElementSibling.hidden, true);
+  assert.equal(storageWrites.at(-1)?.autoBilingual, false, '收起 = 全局暂停自动翻译，新页面不再打扰');
+
+  bubble.click();   // 再展开（已有译文，不重新请求）
+  await tick();
+  assert.equal(para.nextElementSibling.hidden, false);
+  assert.equal(storageWrites.at(-1)?.autoBilingual, true, '再开 = 恢复自动翻译');
 });
 
 test('整页双语对照：收段时跳过容器块，只翻叶子段落', async () => {

@@ -777,6 +777,14 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     pump();
   };
 
+  // 气泡与 Alt+T 的开/关是用户的明确意愿，要跨页面记住：关=新页面不再自动翻，
+  // 开=恢复自动翻。popup 的「整页双语对照」读的就是同一个 key，三处 UI 天然同步。
+  const persistAuto = on => {
+    try {
+      globalThis.chrome?.storage?.local?.set({ [AUTO_STORAGE_KEY]: Boolean(on) });
+    } catch { /* 无 chrome 的环境（单测）跳过 */ }
+  };
+
   const ensureBubble = () => {
     if (bubble?.isConnected) return bubble;
     bubble = element('button', 'lt-bubble', {
@@ -787,16 +795,19 @@ export function createHoverReader({ getHost, getShadow, translateParagraph, onUs
     bubble.onclick = () => {
       if (isPumping() && queue.length) {
         stop();
+        persistAuto(false);
         return;
       }
       if (pageOn && translatedCount()) {
         hideAll();
+        persistAuto(false);
         return;
       }
       // 缺语言包的提示：点击=开始翻译（手动触发允许下载语言包，auto 才禁止）
       bubbleNotice = null;
       onUserIntent?.();
       runAll();
+      persistAuto(true);
     };
     getShadow().append(bubble);
     return bubble;

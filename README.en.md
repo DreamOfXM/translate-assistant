@@ -25,7 +25,7 @@
 | | Feature | Details |
 | --- | --- | --- |
 | ✍️ | **Write-back translation** | Draft a reply in your own language in any comment box; the translation **replaces the draft in place** — **only after you confirm**, never auto-posted |
-| 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched; per-site "never translate" lives in the popup |
+| 📖 | **Bilingual page** | Open a foreign page and translations appear under each paragraph. Only the article body — nav, ads and comment sections are never touched; once you collapse the floating button, new pages stay quiet too — click it again to resume. Per-site "never translate" lives in the popup |
 | 🔍 | **Select to translate** | Select any foreign text, click the floating pill, get a result card in place |
 | 👆 | **Hover to translate** | Hover a paragraph, click the pill that appears — just that one paragraph gets translated |
 | 🎨 | **Five translation styles** | Color block, dashed underline, marker, blur-to-read and translation-only. Picked in the popup, applied everywhere instantly; `Alt+C` cycles through them |
