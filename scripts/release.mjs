@@ -61,6 +61,18 @@ if (versionOrder(next, current) <= 0) {
   process.exit(1);
 }
 
+// 2026-10-27 事故：gh 活动账号切到小号后 git push 仍成功（凭据独立），
+// 但 gh release create 对仓库 404——版本号已写盘提交、Release 却发不出去。
+// 发版前核对 gh 活动账号就是仓库 owner，不一致直接停。
+const remoteUrl = run('git', ['remote', 'get-url', 'origin'], { capture: true }).trim();
+const repoOwner = (remoteUrl.match(/[:/]([^/]+)\/[^/]+?(?:\.git)?$/) ?? [])[1];
+const ghUser = run('gh', ['api', 'user', '--jq', '.login'], { capture: true }).trim();
+if (repoOwner && ghUser && ghUser.toLowerCase() !== repoOwner.toLowerCase()) {
+  console.error(`✖ gh 活动账号是 ${ghUser}，仓库属主是 ${repoOwner}——发版会推不出去。`);
+  console.error(`  先执行：gh auth switch -u ${repoOwner}`);
+  process.exit(1);
+}
+
 console.log(`📦 发版：v${current} → v${next}（${bump}）`);
 
 /* ------------------------------ 版本号写盘 ------------------------------ */
