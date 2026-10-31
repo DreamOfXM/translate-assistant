@@ -11,6 +11,7 @@
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Add%20to%20Chrome-1A73E8?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/%E7%BF%BB%E8%AF%91%E5%8A%A9%E6%89%8B/pihfknfpkmbccdldmjicngjjbefbjgji)
 
 <img src="docs/images/writeback.gif" alt="写入式翻译演示" width="640">
 
@@ -114,16 +115,20 @@
 
 ## 📦 安装
 
-### 方式一：直接下载（推荐）
+### 方式一：从 Chrome 应用商店安装（推荐）
+
+打开[商店页面](https://chromewebstore.google.com/detail/%E7%BF%BB%E8%AF%91%E5%8A%A9%E6%89%8B/pihfknfpkmbccdldmjicngjjbefbjgji) → 点「添加至 Chrome」→ 完成后刷新已打开的网页即可。更新由 Chrome 自动完成。
+
+### 方式二：直接下载 zip（不经过商店）
 
 1. 到 [Releases](https://github.com/DreamOfXM/translate-assistant/releases) 下载最新的 `translate-assistant-vX.Y.Z.zip`
 2. 解压到任意目录
 3. 打开 `chrome://extensions` → 开启右上角「开发者模式」→ 点「加载已解压的扩展程序」→ 选择解压出的 `translate-assistant` 文件夹
-4. 刷新已经打开的网页（content script 只注入新加载的页面）
+4. 刷新已经打开的网页（content script 只注入新加载的网页）
 
-> 未打包上架商店的扩展需要开发者模式加载；扩展不含任何遥测，介意的话可以审查源码。
+> 扩展不含任何遥测，两种安装方式都介意的话可以审查源码。
 
-### 方式二：从源码构建（开发者）
+### 方式三：从源码构建（开发者）
 
 要求 Chrome 109+（用到离屏文档 API）、Node.js 18+。
 

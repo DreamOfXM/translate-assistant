@@ -11,6 +11,7 @@
 [![License: MPL-2.0](https://img.shields.io/badge/License-MPL--2.0-blue.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/Chrome-109%2B-blue.svg)](https://www.google.com/chrome/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/DreamOfXM/translate-assistant/pulls)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Add%20to%20Chrome-1A73E8?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/%E7%BF%BB%E8%AF%91%E5%8A%A9%E6%89%8B/pihfknfpkmbccdldmjicngjjbefbjgji)
 
 <img src="docs/images/writeback-en.gif" alt="Write-back translation demo" width="640">
 
@@ -113,16 +114,20 @@ The same bilingual page reads differently depending on what you're there for: fi
 
 ## 📦 Install
 
-### Option 1: download a build (recommended)
+### Option 1: install from the Chrome Web Store (recommended)
+
+Open the [store listing](https://chromewebstore.google.com/detail/%E7%BF%BB%E8%AF%91%E5%8A%A9%E6%89%8B/pihfknfpkmbccdldmjicngjjbefbjgji) → click **Add to Chrome** → refresh already-open pages. Updates arrive automatically.
+
+### Option 2: download a zip (no store)
 
 1. Grab the latest `translate-assistant-vX.Y.Z.zip` from [Releases](https://github.com/DreamOfXM/translate-assistant/releases)
 2. Unzip it anywhere
 3. Open `chrome://extensions` → enable **Developer mode** → click **Load unpacked** → select the unzipped `translate-assistant` folder
 4. Refresh already-open pages (the content script only injects into newly loaded ones)
 
-> Unpacked extensions require developer mode; the extension contains zero telemetry, and the source is all here to audit.
+> The extension contains zero telemetry, and the source is all here to audit either way.
 
-### Option 2: build from source (developers)
+### Option 3: build from source (developers)
 
 Requires Chrome 109+ (offscreen documents API) and Node.js 18+.
 
