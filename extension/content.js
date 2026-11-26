@@ -85,16 +85,60 @@ function element(tag, className, properties = {}) {
   return node;
 }
 
+/** 卡片与视口边缘的最小留白 */
+const CARD_EDGE_GAP = 8;
+
+/** 负责在卡片变高、窗口变化后把它重新夹回视口的监听；关卡片时断开 */
+let cardKeeper = null;
+
 function closeCard() {
+  cardKeeper?.disconnect();
+  cardKeeper = null;
   card?.remove();
   card = null;
   boundInput = null;
 }
 
-/** 把面板夹在可视区域内，避免贴边被裁掉 */
-function place(node, x, y, height) {
-  node.style.left = `${Math.min(Math.max(8, x), Math.max(8, window.innerWidth - 440))}px`;
-  node.style.top = `${Math.min(Math.max(8, y), Math.max(8, window.innerHeight - height))}px`;
+/**
+ * 把卡片夹在可视区域内，避免贴边被裁掉，并在它变高、窗口变化之后继续夹住。
+ *
+ * 卡片一打开只有占位文案，原文、译文、状态行是之后才陆续到的，高度一直在变；
+ * 所以位置按**渲染后的实测高度**算，而不是调用方估的固定值。
+ */
+function place(node, x, y) {
+  node.style.left = `${Math.min(Math.max(CARD_EDGE_GAP, x), Math.max(CARD_EDGE_GAP, window.innerWidth - 440))}px`;
+  node.style.top = `${clampedTop(node, y)}px`;
+  keepCardInView(node);
+}
+
+/** 给定期望的 top，按卡片当前实测高度算出不超出视口下边缘的 top */
+function clampedTop(node, wantedTop) {
+  // offsetHeight 不受入场动画的位移与缩放影响；量不到布局（没有布局引擎的环境）就不夹
+  const height = node.offsetHeight;
+  if (!height) return wantedTop;
+  const maxTop = Math.max(CARD_EDGE_GAP, window.innerHeight - height - CARD_EDGE_GAP);
+  return Math.min(Math.max(CARD_EDGE_GAP, wantedTop), maxTop);
+}
+
+/**
+ * 卡片变高（原文回填、译文到达）、窗口被拉矮，任何一种都会让它重新掉出视口，
+ * 所以盯着卡片尺寸和视口，变了就再夹一次。
+ * 只往上推、不往下拉：内容变矮时卡片留在原处，免得译文一到就上下跳。
+ */
+function keepCardInView(node) {
+  cardKeeper?.disconnect();
+  const reclamp = () => {
+    node.style.top = `${clampedTop(node, parseFloat(node.style.top))}px`;
+  };
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(reclamp);
+  observer?.observe(node);
+  window.addEventListener('resize', reclamp);
+  cardKeeper = {
+    disconnect() {
+      observer?.disconnect();
+      window.removeEventListener('resize', reclamp);
+    }
+  };
 }
 
 function status(node, message, kind = '') {
@@ -301,7 +345,7 @@ function openResultCard({ text, rect }) {
     </div>
   `;
   shadow.append(card);
-  place(card, rect.left, (rect.bottom || rect.top) + 8, 400);
+  place(card, rect.left, (rect.bottom || rect.top) + 8);
 
   const translateButton = card.querySelector('.lt-translate');
   const saveButton = card.querySelector('.lt-save');
@@ -421,7 +465,7 @@ function openReplyPanel({ input = null, text = '' } = {}) {
   `;
   card.querySelector('.lt-draft').value = draft;
   shadow.append(card);
-  place(card, Math.max(8, window.innerWidth - 440), 84, 520);
+  place(card, Math.max(8, window.innerWidth - 440), 84);
 
   const draftArea = card.querySelector('.lt-draft');
   const translateButton = card.querySelector('.lt-translate');
@@ -551,7 +595,7 @@ function openInlineTranslation({ input }) {
   `;
   shadow.append(card);
   const rect = input.getBoundingClientRect();
-  place(card, rect.left, (rect.bottom || rect.top) + 8, Math.max(300, Math.min(rect.width, 400)));
+  place(card, rect.left, (rect.bottom || rect.top) + 8);
 
   const fillButton = card.querySelector('.lt-fill');
   const retryButton = card.querySelector('.lt-retry');

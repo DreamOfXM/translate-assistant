@@ -27,6 +27,20 @@ window.Range.prototype.getBoundingClientRect = () => ({
 window.Element.prototype.getBoundingClientRect = () => ({
   left: 10, top: 20, right: 210, bottom: 60, width: 200, height: 40, x: 10, y: 20
 });
+// 卡片按「渲染后的实测高度」夹进视口，而 jsdom 没有布局、offsetHeight 恒为 0：
+// 让卡片的高度由用例通过 cardHeight 指定，其余元素仍为 0
+let cardHeight = 0;
+Object.defineProperty(window.HTMLElement.prototype, 'offsetHeight', {
+  configurable: true,
+  get() { return this.classList.contains('lt-card') ? cardHeight : 0; }
+});
+// jsdom 也没有 ResizeObserver：记下每个实例的回调，用例里手动调用 = 「卡片内容变高」
+const resizeObservers = [];
+globalThis.ResizeObserver = class {
+  constructor(callback) { this.callback = callback; this.disconnected = false; resizeObservers.push(this); }
+  observe() {}
+  disconnect() { this.disconnected = true; }
+};
 
 globalThis.window = window;
 globalThis.document = window.document;
@@ -348,6 +362,119 @@ test('选中文本翻译：结果卡片展示译文，且不动任何输入框',
   assert.equal(card.querySelector('.lt-result').textContent, '译文<Local tr>');
   assert.equal(comment.value, '原始草稿', '选中翻译不得修改任何输入框');
   assert.equal(card.querySelector('.lt-fill'), null, '结果卡片不应提供填入按钮');
+});
+
+/* ── 卡片定位 ───────────────────────────────────────────────────────────────
+ * 真实浏览器里复现过的问题：页面滚到底部时点「翻译选中」，卡片从选区下方弹出，
+ * 底边超出视口 231px、译文被截。这里把视口高度、卡片实测高度、选区矩形都交给用例指定。 */
+
+/** 在指定的选区矩形 / 视口高度 / 卡片高度下跑一段操作，跑完恢复现场 */
+async function withLayout({ rangeBottom, viewportHeight, height }, run) {
+  const rangeRect = window.Range.prototype.getBoundingClientRect;
+  const innerHeight = window.innerHeight;
+  if (rangeBottom !== undefined) {
+    window.Range.prototype.getBoundingClientRect = () => ({
+      left: 20, top: rangeBottom - 44, right: 420, bottom: rangeBottom, width: 400, height: 44, x: 20, y: rangeBottom - 44
+    });
+  }
+  window.innerHeight = viewportHeight;
+  cardHeight = height;
+  try {
+    return await run();
+  } finally {
+    window.Range.prototype.getBoundingClientRect = rangeRect;
+    window.innerHeight = innerHeight;
+    cardHeight = 0;
+  }
+}
+
+const openSelectionCard = async () => {
+  window.document.getElementById('para').textContent = 'Local translation runs entirely on your device.';
+  const paragraph = window.document.getElementById('para');
+  const range = window.document.createRange();
+  range.selectNodeContents(paragraph);
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  paragraph.dispatchEvent(new window.MouseEvent('mouseup', { bubbles: true }));
+  await tick();   // mouseup 处理器异步等 i18n 就绪
+  shadow().querySelector('.lt-selection').click();
+  await tick();
+  return shadow().querySelector('.lt-card');
+};
+
+test('卡片定位：选区靠近页底时按实测高度夹回视口，卡片不掉出窗口下边缘', async () => {
+  reset();
+  // 900 高的窗口、640 高的卡片、选区底边在 884：卡片本该从 892 开始，底边掉到 1532
+  const card = await withLayout({ rangeBottom: 884, viewportHeight: 900, height: 640 }, openSelectionCard);
+  assert.ok(card, '应打开结果卡片');
+  assert.equal(card.style.top, '252px', 'top = 900 − 640 − 8，底边 892、离窗口下边缘 8px');
+});
+
+test('卡片定位：译文把卡片撑高后自动上移、底边不动；内容变矮时不往下跳', async () => {
+  reset();
+  await withLayout({ rangeBottom: 884, viewportHeight: 900, height: 300 }, async () => {
+    const card = await openSelectionCard();
+    assert.equal(card.style.top, '592px', '刚打开只有占位内容：按当时的高度夹，底边 892');
+
+    cardHeight = 640;   // 译文到达，卡片长到自身的高度上限
+    resizeObservers.at(-1).callback([]);   // 浏览器在绘制前派发尺寸变化
+    assert.equal(card.style.top, '252px', '卡片应往上长：底边仍是 892，不出视口');
+
+    cardHeight = 300;
+    resizeObservers.at(-1).callback([]);
+    assert.equal(card.style.top, '252px', '内容变矮时留在原处，免得译文一到就上下跳');
+  });
+});
+
+test('卡片定位：窗口被拉矮后卡片跟着回到视口内；关卡片后不再响应', async () => {
+  reset();
+  await withLayout({ rangeBottom: 100, viewportHeight: 900, height: 300 }, async () => {
+    const card = await openSelectionCard();
+    assert.equal(card.style.top, '108px', '视口够高时卡片就贴在选区下方');
+
+    window.innerHeight = 400;
+    window.dispatchEvent(new window.Event('resize'));
+    assert.equal(card.style.top, '92px', '400 − 300 − 8：卡片被拉回视口内');
+    assert.equal(resizeObservers.at(-1).disconnected, false, '卡片还开着，监听应保持');
+
+    window.document.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(resizeObservers.at(-1).disconnected, true, '关卡片要断开尺寸监听');
+    const topBefore = card.style.top;
+    window.innerHeight = 200;
+    window.dispatchEvent(new window.Event('resize'));
+    assert.equal(card.style.top, topBefore, '关卡片后窗口再变化也不该去动它');
+  });
+});
+
+test('卡片定位：就地译文条与完整面板同样按实测高度夹进视口', async () => {
+  reset();
+  const comment = window.document.getElementById('comment');
+  const inputRect = comment.getBoundingClientRect;
+  comment.getBoundingClientRect = () => ({ left: 20, top: 800, right: 620, bottom: 880, width: 600, height: 80, x: 20, y: 800 });
+  try {
+    // 评论框贴着页底、草稿已写好 → 就地译文条
+    await withLayout({ viewportHeight: 900, height: 640 }, async () => {
+      comment.value = 'This draft is already written and sits right at the bottom of the page.';
+      comment.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+      await tick();
+      shadow().querySelector('.lt-float').click();
+      await tick();
+      const inline = shadow().querySelector('.lt-card.lt-inline');
+      assert.ok(inline, '输入框已有草稿时应打开就地译文条');
+      assert.equal(inline.style.top, '252px', '900 − 640 − 8：不再从评论框下方的 888 开始');
+    });
+    // 「完整面板」固定开在右上角；窗口矮到放不下时贴顶并留边距
+    await withLayout({ viewportHeight: 600, height: 640 }, async () => {
+      shadow().querySelector('.lt-card.lt-inline .lt-inline-more').click();
+      await tick();
+      const panel = shadow().querySelector('.lt-card:not(.lt-inline)');
+      assert.ok(panel?.querySelector('.lt-draft'), '应切换到完整面板');
+      assert.equal(panel.style.top, '8px', '600 高的窗口放不下 640 高的面板');
+    });
+  } finally {
+    comment.getBoundingClientRect = inputRect;
+  }
 });
 
 test('选中文本翻译：日语原文的目标语言仍是中文', async () => {
