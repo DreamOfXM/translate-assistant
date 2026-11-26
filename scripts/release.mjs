@@ -3,14 +3,15 @@
  * 一键发版：版本号 → 测试 → 构建 → 提交 → 打 tag → 创建双语 GitHub Release。
  *
  * 用法：
- *   npm run release             # 补丁版本（1.1.0 → 1.1.1）
- *   npm run release -- minor    # 次版本（1.1.0 → 1.2.0）
- *   npm run release -- major    # 主版本（1.1.0 → 2.0.0）
- *   npm run release -- 2.0.0    # 直接指定版本号
+ *   RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release             # 补丁版本（1.1.0 → 1.1.1）
+ *   RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release -- minor    # 次版本（1.1.0 → 1.2.0）
+ *   RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release -- major    # 主版本（1.1.0 → 2.0.0）
+ *   RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release -- 2.0.0    # 直接指定版本号
  *
- * Release 说明 = CHANGELOG 入口（按「保持一个空行」分隔追加），中英双语。
+ * Release 说明是中英双语，必须由 RELEASE_NOTES_ZH / RELEASE_NOTES_EN 给出：
+ * 缺任何一个都会拒绝发版（没有占位默认值）。
  * 需要已登录的 gh CLI（gh auth status 通过）。
- * 跳过推送：环境变量 DRY_RUN=1（只构建与打草稿，不推送不建 Release）。
+ * 跳过推送：环境变量 DRY_RUN=1（只构建并打印 Release 正文，不推送不建 Release；演练可以不带说明）。
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -61,6 +62,19 @@ if (versionOrder(next, current) <= 0) {
   process.exit(1);
 }
 
+/* ------------------------------ Release 说明必须显式给出 ------------------------------ */
+
+// 这里曾留着一个占位默认值（「更新点 1（中文）」），不传说明也照常发版，
+// v1.2.2 / 1.2.3 / 1.2.5 / 1.2.6 四个 Release 就这样带着占位说明发了出去。
+// 版本号一旦写盘就收不回来，所以这道闸放在所有检查的最前面；演练不发布任何东西，可以不带说明。
+const notesZh = (process.env.RELEASE_NOTES_ZH ?? '').trim();
+const notesEn = (process.env.RELEASE_NOTES_EN ?? '').trim();
+if (!process.env.DRY_RUN && !(notesZh && notesEn)) {
+  console.error('✖ 缺少 Release 说明：正式发版必须同时给出中英文说明，不再回退到占位文案。');
+  console.error('  RELEASE_NOTES_ZH="- …" RELEASE_NOTES_EN="- …" npm run release');
+  process.exit(1);
+}
+
 // 2026-10-27 事故：gh 活动账号切到小号后 git push 仍成功（凭据独立），
 // 但 gh release create 对仓库 404——版本号已写盘提交、Release 却发不出去。
 // 发版前核对 gh 活动账号就是仓库 owner，不一致直接停。
@@ -100,12 +114,8 @@ if (!existsSync(zipPath)) {
 
 /* ------------------------------ Release 说明（双语模板） ------------------------------ */
 
-const zhNotes = process.env.RELEASE_NOTES_ZH
-  ?? `- 更新点 1（中文）
-- 更新点 2（中文）`;
-const enNotes = process.env.RELEASE_NOTES_EN
-  ?? `- Change 1 (English)
-- Change 2 (English)`;
+const zhNotes = notesZh || '- （演练未提供 Release 说明；正式发版会在这里被拒绝）';
+const enNotes = notesEn || '- (No release notes supplied for this dry run; a real release is refused here)';
 
 const releaseBody = `## 📦 安装 / Install
 
@@ -127,7 +137,9 @@ ${enNotes}
 /* ------------------------------ 提交与推送 ------------------------------ */
 
 if (process.env.DRY_RUN) {
-  console.log(`\n[DRY_RUN] 已就绪：版本 ${next}、${zipName}、Release 说明已生成（见上）。未提交未推送。`);
+  console.log('\n---------- 将要发布的 Release 正文 ----------\n');
+  console.log(releaseBody);
+  console.log(`\n[DRY_RUN] 已就绪：版本 ${next}、${zipName}。未提交未推送。`);
   process.exit(0);
 }
 

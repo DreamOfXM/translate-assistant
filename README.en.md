@@ -187,13 +187,12 @@ Scope, permission steps and known blind spots: [macos/README.md](macos/README.md
 ## 🛠️ Releasing / Contributing
 
 ```bash
-npm run release             # patch 1.1.0 → 1.1.1: test → build → tag → bilingual Release in one go
-npm run release -- minor    # minor 1.1.0 → 1.2.0
-RELEASE_NOTES_ZH="..." RELEASE_NOTES_EN="..." npm run release   # custom release notes
-DRY_RUN=1 npm run release   # rehearsal: build only, no push
+RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release             # patch 1.1.0 → 1.1.1: test → build → tag → bilingual Release in one go
+RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release -- minor    # minor 1.1.0 → 1.2.0
+DRY_RUN=1 npm run release   # rehearsal: build and print the Release body only, no push
 ```
 
-Requires a logged-in `gh` CLI. For everyday development please run `npm test` and `npm run test:e2e` first.
+Requires a logged-in `gh` CLI. The Chinese and English release notes are both mandatory — a real release is refused without them. For everyday development please run `npm test` and `npm run test:e2e` first.
 
 ## 🧭 Project layout
 

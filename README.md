@@ -183,13 +183,12 @@ open macos/dist/TranslateAssistant.app
 ## 🛠️ 发版 / 贡献
 
 ```bash
-npm run release             # 补丁版 1.1.0 → 1.1.1：测试 → 构建 → tag → 双语 Release 一条龙
-npm run release -- minor    # 次版本 1.1.0 → 1.2.0
-RELEASE_NOTES_ZH="..." RELEASE_NOTES_EN="..." npm run release   # 自定义 Release 说明
-DRY_RUN=1 npm run release   # 演练：只构建不推送
+RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release             # 补丁版 1.1.0 → 1.1.1：测试 → 构建 → tag → 双语 Release 一条龙
+RELEASE_NOTES_ZH="…" RELEASE_NOTES_EN="…" npm run release -- minor    # 次版本 1.1.0 → 1.2.0
+DRY_RUN=1 npm run release   # 演练：只构建并打印 Release 正文，不推送
 ```
 
-需要已登录的 `gh` CLI。日常开发请先跑 `npm test` 与 `npm run test:e2e`。
+需要已登录的 `gh` CLI。中英文 Release 说明是必填项，缺任何一个都会拒绝发版。日常开发请先跑 `npm test` 与 `npm run test:e2e`。
 
 ## 🧭 项目结构
 
